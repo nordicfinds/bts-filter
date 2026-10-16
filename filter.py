@@ -1,5 +1,7 @@
 import csv
+import time
 import urllib.request
+import urllib.error
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
@@ -40,30 +42,41 @@ BEST_SELLER_KEYWORDS = {
     "SENSAI": ["CELLULAR", "BRONZING"]
 }
 
-print("Downloading master BTS feed...")
-req = urllib.request.Request(FEED_URL, headers={'User-Agent': 'Mozilla/5.0'})
+def download_feed_with_retries(url, retries=3, delay=10):
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    req = urllib.request.Request(url, headers=headers)
+    
+    for attempt in range(retries):
+        try:
+            print(f"Downloading master BTS feed (Attempt {attempt + 1}/{retries})...")
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return resp.read().decode('utf-8', errors='ignore')
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
+            print(f"Download failed with error: {e}")
+            if attempt < retries - 1:
+                print(f"Waiting {delay} seconds before retrying...")
+                time.sleep(delay)
+            else:
+                raise
 
-with urllib.request.urlopen(req) as resp:
-    content = resp.read().decode('utf-8', errors='ignore')
-    lines = content.splitlines()
-
+content = download_feed_with_retries(FEED_URL)
+lines = content.splitlines()
 print(f"Downloaded total lines: {len(lines)}")
 
-reader = csv.DictReader(lines, delimiter=';')
-fieldnames = reader.fieldnames
+delim = ';' if ';' in lines[0] else ','
+reader = csv.DictReader(lines, delimiter=delim)
 clean_rows = []
 
 for row in reader:
-    mfg = (row.get("manufacturer") or row.get("Brand") or row.get("brand") or "").upper()
-    title = (row.get("name") or row.get("title") or row.get("Product Name") or "").upper()
+    row_text = " ".join([str(val) for val in row.values()]).upper()
     
     is_match = False
-    if any(b in mfg for b in FULL_BRANDS):
+    if any(brand in row_text for brand in FULL_BRANDS):
         is_match = True
     else:
         for brand, keywords in BEST_SELLER_KEYWORDS.items():
-            if brand in mfg or brand in title:
-                if any(kw in title for kw in keywords):
+            if brand in row_text:
+                if any(kw in row_text for kw in keywords):
                     is_match = True
                     break
 
@@ -74,9 +87,9 @@ for row in reader:
 
 print(f"SUCCESS! Matched products: {len(clean_rows)}")
 
-with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
-    writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=';')
-    writer.writeheader()
-    writer.writerows(clean_rows)
-
-print("Saved bts_filtered.csv successfully!")
+if clean_rows:
+    with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
+        writer = csv.DictWriter(outfile, fieldnames=reader.fieldnames, delimiter=delim)
+        writer.writeheader()
+        writer.writerows(clean_rows)
+    print("Saved bts_filtered.csv successfully!")
