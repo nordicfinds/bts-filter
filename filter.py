@@ -8,7 +8,7 @@ FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=A
 FULL_BRANDS = [
     "AFNAN", "AL HARAMAIN", "ARABIYAT", "ARMAF", "FRAGRANCE WORLD", 
     "FRENCH AVENUE", "LATTAFA", "MAISON ALHAMBRA", "RASASI", "SWISS ARABIAN",
-    "AMIKA", "GLAM OF SWEDEN", "J.CAT BEAUTY", "LILY LOLO", "MISSHA", "MIZON"
+    "AMIKA", "GLAM OF SWEDEN", "J.CAT BEAUTY", "LILY LOLO", "MISSHA", "MIZON", "PARIS CORNER"
 ]
 
 # 2. Brands where you ONLY want specific Best-Selling models/lines
@@ -57,11 +57,11 @@ clean_rows = []
 total_count = 0
 
 with open("bts_raw.csv", mode="r", encoding="utf-8", errors="ignore") as infile:
-    reader = csv.DictReader(infile)
+    reader = csv.DictReader(infile, delimiter=";")
     fieldnames = reader.fieldnames
     
     for row in reader:
-        mfg = (row.get("manufacturer") or "").upper()
+        mfg = (row.get("manufacturer") or row.get("Brand") or row.get("brand") or "").upper()
         title = (row.get("name") or row.get("title") or "").upper()
         
         is_match = False
@@ -86,7 +86,7 @@ with open("bts_raw.csv", mode="r", encoding="utf-8", errors="ignore") as infile:
 print(f"Filtered total best-sellers: {len(clean_rows)} products.")
 
 with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
-    writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+    writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=";")
     writer.writeheader()
     writer.writerows(clean_rows)
 
