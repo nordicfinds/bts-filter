@@ -2,9 +2,9 @@ import csv
 import urllib.request
 
 # BTS Feed URL
-FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556,&format=CSV&language_code=en-GB"
+FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556&format=CSV&language_code=en-GB"
 
-# Targeted EANs/SKUs list or target brand keywords
+# Target Brands/Keywords
 TARGET_BRANDS = [
     "AL HARAMAIN", 
     "AFNAN", 
@@ -16,7 +16,15 @@ TARGET_BRANDS = [
 ]
 
 print("Downloading master BTS feed...")
-urllib.request.urlretrieve(FEED_URL, "bts_raw.csv")
+
+# Send request with a standard browser User-Agent to avoid 403 Forbidden
+req = urllib.request.Request(
+    FEED_URL, 
+    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+)
+
+with urllib.request.urlopen(req) as response, open("bts_raw.csv", "wb") as outfile:
+    outfile.write(response.read())
 
 clean_rows = []
 total_count = 0
@@ -27,7 +35,7 @@ with open("bts_raw.csv", mode="r", encoding="utf-8", errors="ignore") as infile:
     
     for row in reader:
         mfg = (row.get("manufacturer") or "").upper()
-        # Keep matching items up to 950 products max to stay safely under Base.com free limit
+        # Keep matching items up to 950 products max
         if any(brand in mfg for brand in TARGET_BRANDS):
             clean_rows.append(row)
             total_count += 1
