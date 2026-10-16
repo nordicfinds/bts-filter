@@ -1,8 +1,8 @@
 import csv
 import urllib.request
 
-# BTS Feed URL
-FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556&format=CSV&language_code=en-GB"
+# BTS Feed URL with encoded password (Avedore556,)
+FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
 # Target Brands/Keywords
 TARGET_BRANDS = [
@@ -17,7 +17,7 @@ TARGET_BRANDS = [
 
 print("Downloading master BTS feed...")
 
-# Send request with a standard browser User-Agent to avoid 403 Forbidden
+# Send request with a browser User-Agent to avoid HTTP 403 blocks
 req = urllib.request.Request(
     FEED_URL, 
     headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -35,7 +35,7 @@ with open("bts_raw.csv", mode="r", encoding="utf-8", errors="ignore") as infile:
     
     for row in reader:
         mfg = (row.get("manufacturer") or "").upper()
-        # Keep matching items up to 950 products max
+        # Keep matching items up to 950 products max to stay under Base.com free limit
         if any(brand in mfg for brand in TARGET_BRANDS):
             clean_rows.append(row)
             total_count += 1
