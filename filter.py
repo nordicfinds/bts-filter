@@ -2,6 +2,7 @@ import csv
 import urllib.request
 import urllib.error
 import time
+import re
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
@@ -48,8 +49,14 @@ BRAND_KEYWORDS = {
     "VERSACE": ["BRIGHT CRYSTAL", "EROS", "DYLAN", "CRYSTAL NOIR", "EAU FRAICHE", "YELLOW DIAMOND", "MAN EAU FRAICHE"]
 }
 
-# Max products safety threshold
 MAX_MATCHES = 950
+
+def clean_price(val):
+    if not val:
+        return ""
+    # Strips out '€', spaces, commas, and non-numeric formatting
+    cleaned = re.sub(r'[^0-9\.]', '', val.replace(',', '.'))
+    return cleaned
 
 def download_feed():
     req = urllib.request.Request(FEED_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -77,11 +84,9 @@ for row in reader:
     
     is_match = False
     
-    # Check full brands
     if any(b in row_text for b in FULL_BRANDS):
         is_match = True
     else:
-        # Check specific best sellers per brand
         for brand, keywords in BRAND_KEYWORDS.items():
             if brand in row_text:
                 if any(kw in row_text for kw in keywords):
@@ -89,6 +94,11 @@ for row in reader:
                     break
 
     if is_match:
+        if 'price' in row:
+            row['price'] = clean_price(row['price'])
+        if 'recommended_price' in row:
+            row['recommended_price'] = clean_price(row['recommended_price'])
+            
         clean_rows.append(row)
         if len(clean_rows) >= MAX_MATCHES:
             print(f"Reached cap of {MAX_MATCHES} matched products.")
