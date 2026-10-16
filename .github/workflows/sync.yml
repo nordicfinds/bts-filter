@@ -1,0 +1,32 @@
+name: Daily BTS Filter Sync
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # Runs every morning at 04:00 AM UTC
+  workflow_dispatch: # Allows running manually anytime
+
+permissions:
+  contents: write
+
+jobs:
+  filter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run filter script
+        run: python filter.py
+
+      - name: Commit and push clean CSV
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add bts_filtered.csv
+          git commit -m "Updated filtered BTS catalog" || exit 0
+          git push
