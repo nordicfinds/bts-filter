@@ -58,6 +58,25 @@ def clean_price(val):
     cleaned = re.sub(r'[^0-9\.]', '', val.replace(',', '.'))
     return cleaned
 
+def clean_title(title_str):
+    if not title_str:
+        return ""
+    
+    # List of words/phrases to remove from titles (case-insensitive)
+    unwanted_terms = [
+        r'\bSpray\b', 
+        r'\bVaporisateur\b', 
+        r'\bVapo\b'
+    ]
+    
+    cleaned = title_str
+    for term in unwanted_terms:
+        cleaned = re.sub(term, '', cleaned, flags=re.IGNORECASE)
+    
+    # Remove extra whitespace created by removing words
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
+
 def download_feed():
     req = urllib.request.Request(FEED_URL, headers={'User-Agent': 'Mozilla/5.0'})
     for attempt in range(3):
@@ -94,10 +113,16 @@ for row in reader:
                     break
 
     if is_match:
+        # 1. Clean prices
         if 'price' in row:
             row['price'] = clean_price(row['price'])
         if 'recommended_price' in row:
             row['recommended_price'] = clean_price(row['recommended_price'])
+            
+        # 2. Clean title column if present
+        for name_col in ['name', 'title', 'product_name']:
+            if name_col in row:
+                row[name_col] = clean_title(row[name_col])
             
         clean_rows.append(row)
         if len(clean_rows) >= MAX_MATCHES:
