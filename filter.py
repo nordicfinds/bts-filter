@@ -3,34 +3,34 @@ import urllib.request
 import urllib.error
 import time
 import re
-from collections import defaultdict
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
-# Top High-Demand Brands for the Nordic Market
-TARGET_BRANDS = [
-    "LATTAFA", 
-    "ARMAF", 
-    "FRAGRANCE WORLD", 
-    "PARIS CORNER", 
-    "AFNAN", 
-    "RASASI", 
-    "FRENCH AVENUE", 
-    "SWISS ARABIAN", 
-    "ARABIYAT", 
-    "CAROLINA HERRERA", 
-    "CALVIN KLEIN", 
-    "ELIZABETH ARDEN", 
-    "JULIETTE HAS A GUN", 
-    "CLEAN", 
-    "THE ORDINARY", 
-    "VERSACE", 
-    "PACO RABANNE", 
-    "SOL DE JANEIRO"
-]
+# Updated Target Models (Added Afnan Extrait/Not Only)
+TARGET_MODELS = {
+    "RASASI": ["HAWAS", "DAAREJ", "SHUHRAH", "LA YUQAWAM"],
+    "FRENCH AVENUE": ["LIQUID BRUN", "ROYAL BLEND", "AFTER EIGHT", "ENIGMA UNO"],
+    "AFNAN": ["9PM", "9AM", "TURATHI", "SUPREMACY", "MODEST UNS", "NOT ONLY", "EXTRAIT"], # Added Extrait / Not Only
+    "LATTAFA": ["KHAMRAH", "NEBRAS", "FAKHAR", "BADEE AL OUD", "MAAHIR", "HONOR & GLORY"],
+    "ARMAF": ["TAG", "VENTANA", "ODYSSEY", "BUCEPHALUS"],
+    "GUCCI": ["BLOOM", "FLORA", "GUILTY", "RUSH"],
+    "FRAGRANCE WORLD": ["BARAKKAT", "COFFEE BREAK", "DIVIN ASPHALT", "INTRO", "SUITS"],
+    "PARIS CORNER": ["EMIR", "KHAIR", "AUTOMNE", "PISTACHIO"],
+    "SWISS ARABIAN": ["SHAGHAF", "CASABLANCA", "GHARAAM", "LAYALI"],
+    "ARABIYAT": ["PRESTIGE", "OUD AL LAYL", "ARABIYAT KHAS"],
+    "CAROLINA HERRERA": ["GOOD GIRL", "BAD BOY", "212", "VERY GOOD GIRL"],
+    "CALVIN KLEIN": ["CK ONE", "CK BE", "EUPHORIA", "ETERNITY"],
+    "ELIZABETH ARDEN": ["GREEN TEA", "EIGHT HOUR", "5TH AVENUE"],
+    "JULIETTE HAS A GUN": ["NOT A PERFUME", "SUPERDOSE", "PEAR INC"],
+    "CLEAN": ["WARM COTTON", "RESERVE", "RAIN", "SKIN"],
+    "THE ORDINARY": ["NIACINAMIDE", "HYALURONIC", "AHA", "CAFFEINE", "GLYCOLIC"],
+    "VERSACE": ["EROS", "BRIGHT CRYSTAL", "DYLAN", "CRYSTAL NOIR"],
+    "PACO RABANNE": ["1 MILLION", "ONE MILLION", "INVICTUS", "LADY MILLION", "OLYMPEA"],
+    "SOL DE JANEIRO": ["CHEIROSA", "BUM BUM", "62", "68", "71"]
+}
 
-EXACT_TARGET_COUNT = 100  # Exactly 100 items
-MIN_STOCK = 5             # Minimum stock requirement
+EXACT_TARGET_COUNT = 100  # Hard cap for BaseLinker freemium limit
+MIN_STOCK = 5             # Stock must be >= 5
 
 def clean_price(val):
     if not val:
@@ -75,8 +75,7 @@ print(f"Downloaded catalog with {len(lines)} lines.")
 delim = ';' if ';' in lines[0] else ','
 reader = csv.DictReader(lines, delimiter=delim)
 
-# Group products by brand bucket
-brand_buckets = defaultdict(list)
+candidates = []
 
 for row in reader:
     stock_qty = get_stock_count(row)
@@ -85,13 +84,14 @@ for row in reader:
 
     row_text = " ".join([str(v) for v in row.values() if v]).upper()
     
-    matched_brand = None
-    for brand in TARGET_BRANDS:
+    matched = False
+    for brand, models in TARGET_MODELS.items():
         if brand in row_text:
-            matched_brand = brand
-            break
+            if any(m in row_text for m in models):
+                matched = True
+                break
 
-    if matched_brand:
+    if matched:
         if 'price' in row:
             row['price'] = clean_price(row['price'])
         if 'recommended_price' in row:
@@ -101,46 +101,23 @@ for row in reader:
             if name_col in row:
                 row[name_col] = clean_title(row[name_col])
                 
-        brand_buckets[matched_brand].append({
+        candidates.append({
             'row': row,
             'stock': stock_qty
         })
 
-# Sort items within each brand by highest stock volume first
-for brand in brand_buckets:
-    brand_buckets[brand].sort(key=lambda x: x['stock'], reverse=True)
+# Sort candidate matches by highest stock to ensure availability
+candidates.sort(key=lambda x: x['stock'], reverse=True)
 
-# Round-robin selection to guarantee EXACTLY 100 items distributed across brands
-final_selected = []
-active_brands = [b for b in TARGET_BRANDS if b in brand_buckets]
+# Select strictly up to 100 top matches
+final_selected = [c['row'] for c in candidates[:EXACT_TARGET_COUNT]]
 
-while len(final_selected) < EXACT_TARGET_COUNT and active_brands:
-    brands_to_remove = []
-    for brand in active_brands:
-        if len(final_selected) >= EXACT_TARGET_COUNT:
-            break
-        
-        items = brand_buckets[brand]
-        if items:
-            # Pop the highest stock item for this brand
-            top_item = items.pop(0)
-            final_selected.append(top_item['row'])
-        else:
-            brands_to_remove.append(brand)
-            
-    # Clean up brands that ran out of eligible stock items
-    for b in brands_to_remove:
-        active_brands.remove(b)
-        
-    # Safety break if total catalog has fewer than 100 items meeting criteria
-    if not active_brands:
-        break
-
-print(f"Final selected product count: {len(final_selected)}")
+print(f"Matched {len(candidates)} specific models meeting criteria.")
+print(f"Outputting exactly top {len(final_selected)} items.")
 
 if final_selected:
     with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
         writer = csv.DictWriter(outfile, fieldnames=reader.fieldnames, delimiter=delim)
         writer.writeheader()
         writer.writerows(final_selected)
-    print("bts_filtered.csv successfully generated with exact count!")
+    print("bts_filtered.csv successfully updated with target models!")
