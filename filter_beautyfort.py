@@ -53,13 +53,14 @@ def clean_title(title_str):
 def fetch_beautyfort_catalog():
     print("Generating Beauty Fort WS-Security Authentication headers...")
     
-    nonce = uuid.uuid4().hex[:16]
+    nonce = uniqid = uuid.uuid4().hex[:16]
     created = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
     
-    # Password formula: base64_encode(sha1(nonce . created . secret)) using binary digest
+    # PHP exact formula: base64_encode(sha1($nonce.$created.API_SECRET)) 
+    # where sha1() in PHP returns the 40-char hex string.
     raw_str = f"{nonce}{created}{API_SECRET}"
-    sha1_binary = hashlib.sha1(raw_str.encode('utf-8')).digest()
-    password = base64.b64encode(sha1_binary).decode('utf-8')
+    sha1_hex = hashlib.sha1(raw_str.encode('utf-8')).hexdigest()
+    password = base64.b64encode(sha1_hex.encode('utf-8')).decode('utf-8')
 
     soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:bf="http://www.beautyfort.com/api/">
