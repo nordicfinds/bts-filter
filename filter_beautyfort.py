@@ -59,14 +59,15 @@ def fetch_live_soap_catalog():
     print(f"Connecting to Beauty Fort SOAP API ({WSDL_URL})...")
     try:
         client = Client(WSDL_URL)
-        print("Calling SOAP method: GetStockFile with SortBy parameter")
         
-        # Pass SortBy argument as required by GetStockFileRequest schema
-        response = client.service.GetStockFile(
-            username=USERNAME,
-            secret=SECRET_KEY,
-            SortBy="sku"
-        )
+        # Inject authentication credentials into the SOAP Header
+        client.set_default_soap_headers({
+            'username': USERNAME,
+            'secret': SECRET_KEY
+        })
+        
+        print("Calling SOAP method: GetStockFile")
+        response = client.service.GetStockFile(SortBy="sku")
         
         # If GetStockFile returns a download URL for the spreadsheet
         if isinstance(response, str) and response.startswith('http'):
