@@ -1,6 +1,7 @@
 import os
 import re
 import csv
+import requests
 import pandas as pd
 from zeep import Client
 from zeep.exceptions import Fault
@@ -58,26 +59,22 @@ def fetch_live_soap_catalog():
     print(f"Connecting to Beauty Fort SOAP API ({WSDL_URL})...")
     try:
         client = Client(WSDL_URL)
+        print("Calling SOAP method: GetStockFile")
         
-        # Safely list all available SOAP operations in the logs
-        operations = [op for op in dir(client.service) if not op.startswith('_')]
-        print(f"Available SOAP Operations: {operations}")
+        # Invoke the correct stock file retrieval method
+        response = client.service.GetStockFile(USERNAME, SECRET_KEY)
         
-        # Test common method names
-        for op_name in ['getStockList', 'GetStockList', 'getProducts', 'GetProducts', 'stockList', 'getItems']:
-            if hasattr(client.service, op_name):
-                print(f"Calling SOAP method: {op_name}")
-                method = getattr(client.service, op_name)
-                return method(USERNAME, SECRET_KEY)
-                
-        # Fallback to first available operation if names differ
-        if operations:
-            method = getattr(client.service, operations[0])
-            print(f"Calling primary available operation: {operations[0]}")
-            return method(USERNAME, SECRET_KEY)
+        # If GetStockFile returns a download URL for the spreadsheet
+        if isinstance(response, str) and response.startswith('http'):
+            print(f"Downloading live stock file from URL: {response}")
+            file_resp = requests.get(response, timeout=30)
+            file_resp.raise_for_status()
+            temp_filename = "live_soap_stock.xlsx"
+            with open(temp_filename, "wb") as f:
+                f.write(file_resp.content)
+            return temp_filename
             
-        return None
-            
+        return response
     except Fault as f:
         print(f"SOAP Fault Error: {f}")
         return None
@@ -86,50 +83,21 @@ def fetch_live_soap_catalog():
         return None
 
 matched_items = []
-soap_data = fetch_live_soap_catalog()
+soap_result = fetch_live_soap_catalog()
 
-if soap_data:
-    print("Successfully retrieved product list via SOAP API!")
-    for item in soap_data:
-        sku = str(getattr(item, 'sku', getattr(item, 'code', ''))).strip()
-        raw_name = str(getattr(item, 'name', getattr(item, 'description', ''))).strip()
-        stock_val = getattr(item, 'stock', getattr(item, 'quantity', 0))
-        price_val = getattr(item, 'price', 0)
-        ean = str(getattr(item, 'barcode', getattr(item, 'ean', ''))).strip()
-
-        try:
-            stock = float(stock_val)
-        except (ValueError, TypeError):
-            stock = 0.0
-
-        if stock < MIN_STOCK:
-            continue
-
-        name = clean_title(raw_name.upper())
-        brand = name.split()[0] if name else "UNKNOWN"
-        for b in TOP_BRANDS:
-            if name.startswith(b) or f" {b} " in name:
-                brand = b
-                break
-
-        searchable = f"{brand} {name}"
-        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
-            matched_items.append({
-                "sku": sku,
-                "brand": brand,
-                "name": name,
-                "stock": int(stock),
-                "price": str(price_val).replace(',', '.'),
-                "ean": ean
-            })
-else:
+# Determine data source (either downloaded file from SOAP URL or fallback local spreadsheet)
+data_source = soap_result
+if not data_source:
     print("Falling back to local spreadsheet file...")
     excel_files = [f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')]
     if not excel_files:
         raise SystemExit("No API data or local Excel file available.")
+    data_source = excel_files[0]
 
-    INPUT_EXCEL = excel_files[0]
-    df = pd.read_excel(INPUT_EXCEL, header=0)
+# Process the spreadsheet (whether downloaded live via SOAP or local fallback)
+if isinstance(data_source, str) and data_source.endswith('.xlsx'):
+    print(f"Reading inventory data from: {data_source}")
+    df = pd.read_excel(data_source, header=0)
     cols = df.columns
     barcode_col = next((c for c in cols if 'streckkod' in str(c).lower() or 'barcode' in str(c).lower()), cols[0])
     sku_col = next((c for c in cols if 'lagerkod' in str(c).lower() or 'sku' in str(c).lower()), cols[1])
@@ -170,6 +138,41 @@ else:
                 "stock": int(stock),
                 "price": str(price_val).replace(',', '.'),
                 "ean": ean if ean.lower() != 'nan' else ""
+            })
+else:
+    # Handle if SOAP returns structured product objects directly
+    print("Processing direct SOAP object list...")
+    for item in soap_result:
+        sku = str(getattr(item, 'sku', getattr(item, 'code', ''))).strip()
+        raw_name = str(getattr(item, 'name', getattr(item, 'description', ''))).strip()
+        stock_val = getattr(item, 'stock', getattr(item, 'quantity', 0))
+        price_val = getattr(item, 'price', 0)
+        ean = str(getattr(item, 'barcode', getattr(item, 'ean', ''))).strip()
+
+        try:
+            stock = float(stock_val)
+        except (ValueError, TypeError):
+            stock = 0.0
+
+        if stock < MIN_STOCK:
+            continue
+
+        name = clean_title(raw_name.upper())
+        brand = name.split()[0] if name else "UNKNOWN"
+        for b in TOP_BRANDS:
+            if name.startswith(b) or f" {b} " in name:
+                brand = b
+                break
+
+        searchable = f"{brand} {name}"
+        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
+            matched_items.append({
+                "sku": sku,
+                "brand": brand,
+                "name": name,
+                "stock": int(stock),
+                "price": str(price_val).replace(',', '.'),
+                "ean": ean
             })
 
 # Sort by highest stock first and trim to target count
