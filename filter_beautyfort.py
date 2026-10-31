@@ -12,73 +12,6 @@ API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
 
-# Strict Curated List of High-Demand Designer Bestsellers & Brands
-TOP_MODELS = [
-    # Dior
-    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "JADORE", "MISS DIOR", "DIOR HOMME", "DIOR",
-    # Chanel
-    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE HOMME", "CHANCE", "N°5", "CHANEL",
-    # Versace
-    "EROS", "DYLAN BLUE", "BRIGHT CRYSTAL", "EROS FLAME", "VERSACE",
-    # Armani / Giorgio Armani
-    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI PASSIONE", "ARMANI CODE", "ARMANI",
-    # YSL (Yves Saint Laurent)
-    "BLACK OPIUM", "LIBRE", "YSL Y", "Y HOMME", "MON PARIS", "YSL", "YVES SAINT LAURENT",
-    # Paco Rabanne
-    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", "LADY MILLION", "RABANNE",
-    # Dolce & Gabbana
-    "LIGHT BLUE", "THE ONE", "K BY DOLCE", "DEVOTION", "DOLCE & GABBANA", "DOLCE",
-    # Hugo Boss
-    "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME", "HUGO BOSS", "BOSS",
-    # Gucci
-    "GUCCI BLOOM", "GUCCI GUILTY", "FLORA GORGEOUS", "MEMOIRE", "GUCCI",
-    # Prada
-    "PRADA LUNA ROSSA", "PARADOXE", "PRADA CANDY", "PRADA",
-    # Burberry
-    "BURBERRY HER", "BURBERRY GODDESS", "MR BURBERRY", "LONDON FOR MEN", "BURBERRY",
-    # Calvin Klein
-    "CK ONE", "ETERNITY", "EUPHORIA", "CK BE", "CALVIN KLEIN",
-    # Carolina Herrera
-    "GOOD GIRL", "BAD BOY", "212 VIP", "CAROLINA HERRERA",
-    # Jean Paul Gaultier
-    "LE MALE", "SCANDAL", "ULTRA MALE", "DIVINE", "GAULTIER",
-    # Tom Ford
-    "BLACK ORCHID", "OMBRÉ LEATHER", "OMBRE LEATHER", "NEROLI PORTOFINO", "TOBACCO VANILLE", "TOM FORD",
-    # Hermès & Bvlgari
-    "TERRE D'HERMES", "H24", "BVLGARI MAN", "OMNIA", "HERMES", "BVLGARI"
-]
-
-EXACT_TARGET_COUNT = 150
-MIN_STOCK = 5
-
-def clean_price(val):
-    if not val:
-        return ""
-    return re.sub(r'[^0-9\.]', '', str(val).replace(',', '.'))
-
-def clean_title(title_str):
-    if not title_str:
-        return ""
-    unwanted_terms = [r'\bSpray\b', r'\bSprej\b', r'\bVaporisateur\b', r'\bVapo\b']
-    cleaned = title_str
-    for term in unwanted_terms:
-        cleaned = re.sub(term, '', cleaned, flags=re.IGNORECASE)
-    return re.sub(r'\s+', ' ', cleaned).strip()
-
-def extract_brand(title_str):
-    known_brands = [
-        "ABERCROMBIE & FITCH", "CAROLINA HERRERA", "DOLCE & GABBANA", 
-        "JEAN PAUL GAULTIER", "YVES SAINT LAURENT", "HUGO BOSS", "CALVIN KLEIN",
-        "GIORGIO ARMANI", "PACO RABANNE", "TOM FORD", "DIOR", "CHANEL", 
-        "VERSACE", "GUCCI", "PRADA", "BURBERRY", "HERMES", "BVLGARI", "ARMANI", "YSL", "BOSS", "CK"
-    ]
-    title_upper = title_str.upper()
-    for b in known_brands:
-        if title_upper.startswith(b) or f" {b} " in title_upper:
-            return b
-    words = title_str.split()
-    return " ".join(words[:2]).upper() if len(words) >= 2 else title_str.upper()
-
 def fetch_beautyfort_catalog():
     print("Generating Beauty Fort WS-Security authentication headers...")
     nonce = uuid.uuid4().hex[:16]
@@ -125,83 +58,33 @@ def fetch_beautyfort_catalog():
     return response.text
 
 raw_xml = fetch_beautyfort_catalog()
-print("Received SOAP response. Parsing and applying strict bestseller filters...")
-
-matched_items = []
+print("Received SOAP response. Inspecting raw catalog items...")
 
 try:
     root = ET.fromstring(raw_xml)
+    count = 0
     
     for elem in root.iter():
-        sku, full_name, stock_str, price_str, ean, image_url, xml_brand = '', '', '', '', '', '', ''
-        
+        sku, full_name, stock_str = '', '', ''
         for child in elem:
             t = child.tag.split('}')[-1].lower()
             val = child.text.strip() if child.text else ''
-            
             if t in ['stockcode', 'sku', 'code']:
                 sku = val
             elif t in ['fullname', 'name', 'description', 'title']:
                 if len(val) > len(full_name):
                     full_name = val
-            elif t in ['brand']:
-                xml_brand = val
             elif t in ['quantity', 'stock', 'stocklevel', 'qty']:
                 stock_str = val
-            elif t in ['price', 'lastpurchasedprice', 'cost']:
-                price_str = val
-            elif t in ['barcode', 'ean', 'upc']:
-                ean = val
-            elif t in ['imageurl', 'image', 'picture', 'photo']:
-                image_url = val
 
-        if not sku or not full_name:
-            continue
-
-        # Parse stock safely
-        try:
-            stock = float(re.sub(r'[^0-9\.]', '', stock_str)) if stock_str else 0.0
-        except ValueError:
-            stock = 0.0
-
-        # Strict Minimum Stock Rule
-        if stock < MIN_STOCK:
-            continue
-
-        brand = xml_brand.upper() if xml_brand else extract_brand(full_name)
-        cleaned_name = clean_title(full_name.upper())
-
-        # Strict Bestseller Model / Brand Filtering (No random products)
-        if any(model in cleaned_name for model in TOP_MODELS):
-            matched_items.append({
-                'sku': sku,
-                'brand': brand,
-                'name': cleaned_name,
-                'stock': int(stock),
-                'price': clean_price(price_str),
-                'ean': ean,
-                'image': image_url
-            })
+        if sku and full_name and count < 5:
+            print(f"SAMPLE ITEM -> SKU: {sku} | Stock: '{stock_str}' | Name: {full_name}")
+            count += 1
 
 except Exception as e:
-    print(f"Parser Error: {e}")
+    print(f"Error: {e}")
 
-# Deduplicate by SKU and limit to exact target count
-seen_skus = set()
-unique_items = []
-for item in matched_items:
-    if item['sku'] not in seen_skus:
-        seen_skus.add(item['sku'])
-        unique_items.append(item)
-    if len(unique_items) >= EXACT_TARGET_COUNT:
-        break
-
-print(f"Successfully matched {len(unique_items)} specific designer bestsellers with stock >= {MIN_STOCK}.")
-
+# Write empty file to prevent git errors for now while inspecting logs
 with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
-    fieldnames = ['sku', 'brand', 'name', 'stock', 'price', 'ean', 'image']
-    writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=';')
-    writer.writeheader()
-    writer.writerows(unique_items)
-
-print("beautyfort_filtered.csv updated successfully!")
+    writer = csv.writer(outfile, delimiter=';')
+    writer.writerow(['sku', 'brand', 'name', 'stock', 'price', 'ean', 'image'])
