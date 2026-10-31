@@ -6,25 +6,31 @@ import re
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
-# Strictly Middle Eastern & Arabian Niche / Inspired Brands
-MIDDLE_EASTERN_BRANDS = [
-    "LATTAFA",
-    "AFNAN",
-    "FRENCH AVENUE",
-    "PARIS CORNER",
-    "MAISON ALHAMBRA",
+# Items you already fulfill yourself (strictly excluded)
+EXCLUDED_PHRASES = ["YARA", "ASAD", "CLUB DE NUIT"]
+
+# Priority Brand: All Afnan products will be pulled first
+PRIMARY_BRAND = "AFNAN"
+
+# Other preferred brands to fill remaining slots up to 150 total
+OTHER_TARGET_BRANDS = [
     "RASASI",
     "AL HARAMAIN",
-    "ARMAF",
+    "LATTAFA",  # Yara & Asad are excluded via EXCLUDED_PHRASES above
+    "PARIS CORNER",
+    "MAISON ALHAMBRA",
+    "ARMAF",    # Club de Nuit variants are excluded via EXCLUDED_PHRASES above
     "SWISS ARABIAN",
     "ARABIYAT",
     "ARD AL ZAAFARAN",
     "NABEEL",
     "KHADLAJ",
-    "AYAT"
+    "AYAT",
+    "FRAGRANCE WORLD",
+    "FRENCH AVENUE"
 ]
 
-EXACT_TARGET_COUNT = 100  # Strictly top 100 items for BaseLinker budget
+EXACT_TARGET_COUNT = 150  # Total exact limit for BTS
 MIN_STOCK = 5             # Stock must be >= 5
 
 def clean_price(val):
@@ -52,12 +58,41 @@ def get_stock_count(row):
     return 0.0
 
 def has_valid_image(row):
-    """Check if the row has a non-empty image URL/path."""
     image_cols = ['image', 'image_url', 'picture', 'img', 'photo_url', 'image1']
     for col in image_cols:
         if col in row and row[col] and str(row[col]).strip() != "":
             return True
     return False
+
+def is_excluded(row):
+    """Check if the row contains any excluded phrases like Yara, Asad, or Club de Nuit"""
+    row_text = " ".join([str(v) for v in row.values() if v]).upper()
+    for phrase in EXCLUDED_PHRASES:
+        if re.search(r'\b' + re.escape(phrase) + r'\b', row_text):
+            return True
+    return False
+
+def get_brand_category(row):
+    """Classify row as 'afnan', 'other', or None"""
+    brand_cols = ['brand', 'manufacturer', 'vendor', 'marca', 'brand_name']
+    name_cols = ['name', 'title', 'product_name']
+    
+    # 1. Check Afnan first (Priority)
+    for col in brand_cols + name_cols:
+        if col in row and row[col]:
+            val_upper = str(row[col]).upper()
+            if re.search(r'\bAFNAN\b', val_upper):
+                return 'afnan'
+                
+    # 2. Check other target brands
+    for col in brand_cols + name_cols:
+        if col in row and row[col]:
+            val_upper = str(row[col]).upper()
+            for brand in OTHER_TARGET_BRANDS:
+                if re.search(r'\b' + re.escape(brand) + r'\b', val_upper):
+                    return 'other'
+                    
+    return None
 
 def download_feed():
     req = urllib.request.Request(FEED_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -78,50 +113,63 @@ print(f"Downloaded catalog with {len(lines)} lines.")
 delim = ';' if ';' in lines[0] else ','
 reader = csv.DictReader(lines, delimiter=delim)
 
-candidates = []
+afnan_candidates = []
+other_candidates = []
 
 for row in reader:
-    # 1. Check stock threshold (Must be >= 5)
+    # 1. Stock check
     stock_qty = get_stock_count(row)
     if stock_qty < MIN_STOCK:
         continue
 
-    # 2. Check for missing image
+    # 2. Image check
     if not has_valid_image(row):
         continue
 
-    row_text = " ".join([str(v) for v in row.values() if v]).upper()
-    
-    # 3. Match ONLY Middle Eastern Brands
-    matched = any(brand in row_text for brand in MIDDLE_EASTERN_BRANDS)
+    # 3. Skip excluded items (Yara, Asad, Club de Nuit)
+    if is_excluded(row):
+        continue
 
-    if matched:
-        if 'price' in row:
-            row['price'] = clean_price(row['price'])
-        if 'recommended_price' in row:
-            row['recommended_price'] = clean_price(row['recommended_price'])
-            
-        for name_col in ['name', 'title', 'product_name']:
-            if name_col in row:
-                row[name_col] = clean_title(row[name_col])
-                
-        candidates.append({
-            'row': row,
-            'stock': stock_qty
-        })
+    # 4. Check brand match
+    brand_type = get_brand_category(row)
+    if not brand_type:
+        continue
 
-# Sort all valid Middle Eastern matches by highest stock available
-candidates.sort(key=lambda x: x['stock'], reverse=True)
+    if 'price' in row:
+        row['price'] = clean_price(row['price'])
+    if 'recommended_price' in row:
+        row['recommended_price'] = clean_price(row['recommended_price'])
 
-# Take strictly the top 100 with valid images and stock >= 5
-final_selected = [c['row'] for c in candidates[:EXACT_TARGET_COUNT]]
+    for name_col in ['name', 'title', 'product_name']:
+        if name_col in row:
+            row[name_col] = clean_title(row[name_col])
 
-print(f"Matched {len(candidates)} total Middle Eastern perfumes with images and stock >= {MIN_STOCK}.")
-print(f"Outputting exactly top {len(final_selected)} items into bts_filtered.csv.")
+    item = {'row': row, 'stock': stock_qty}
+    if brand_type == 'afnan':
+        afnan_candidates.append(item)
+    else:
+        other_candidates.append(item)
 
-if final_selected:
+# Sort candidates by highest stock available
+afnan_candidates.sort(key=lambda x: x['stock'], reverse=True)
+other_candidates.sort(key=lambda x: x['stock'], reverse=True)
+
+# Build final selection: All Afnan first, then fill remainder from other brands up to 150
+final_selected_items = [c['row'] for c in afnan_candidates]
+
+remaining_slots = EXACT_TARGET_COUNT - len(final_selected_items)
+if remaining_slots > 0:
+    final_selected_items.extend([c['row'] for c in other_candidates[:remaining_slots]])
+else:
+    # If Afnan alone exceeds 150, cap the list cleanly at 150
+    final_selected_items = final_selected_items[:EXACT_TARGET_COUNT]
+
+print(f"Found {len(afnan_candidates)} Afnan items and {len(other_candidates)} other targeted brand items.")
+print(f"Outputting exactly {len(final_selected_items)} items into bts_filtered.csv.")
+
+if final_selected_items:
     with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
         writer = csv.DictWriter(outfile, fieldnames=reader.fieldnames, delimiter=delim)
         writer.writeheader()
-        writer.writerows(final_selected)
+        writer.writerows(final_selected_items)
     print("bts_filtered.csv successfully updated!")
