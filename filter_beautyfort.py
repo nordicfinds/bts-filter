@@ -4,17 +4,23 @@ import csv
 import requests
 import pandas as pd
 from zeep import Client
-from zeep.exceptions import Fault
+from zeep.exceptions Fault
 from lxml import etree
 
 # ============ SETTINGS ============
-EXACT_TARGET_COUNT = 150
+EXACT_TARGET_COUNT = 150  # 150 from Beautyfort + 150 from BTS = 300 total
 MIN_STOCK = 5
 OUTPUT_FILE = "beautyfort_filtered.csv"
 
 WSDL_URL = "https://www.beautyfort.com/api/wsdl.wsdl"
-USERNAME = "Base.com"
-SECRET_KEY = "JfPciKxq"
+USERNAME = "nordicfinds"
+SECRET_KEY = "Wh0t7BJpwvkPLIdGbu6KMjYlU1DAx8me2n"
+
+# Specific brand allocation quotas for Beautyfort
+HUGO_BOSS_TERMS = ["HUGO BOSS", "BOSS"]
+ARMANI_TERMS = ["GIORGIO ARMANI", "ARMANI"]
+GUCCI_TERMS = ["GUCCI"]
+DG_TERMS = ["DOLCE & GABBANA", "DOLCE"]
 
 TOP_BRANDS = [
     "DIOR", "CHANEL", "VERSACE", "GIORGIO ARMANI", "ARMANI", "YVES SAINT LAURENT",
@@ -102,6 +108,47 @@ if not data_source:
         raise SystemExit("No API data or local Excel file available.")
     data_source = excel_files[0]
 
+def process_row(sku, raw_name, stock_val, price_val, ean):
+    if not sku or sku.lower() == 'nan' or not raw_name:
+        return None
+    try:
+        stock = float(str(stock_val).replace(',', '.')) if pd.notna(stock_val) else 0.0
+    except ValueError:
+        stock = 0.0
+
+    if stock < MIN_STOCK:
+        return None
+
+    name = clean_title(raw_name.upper())
+    brand = name.split()[0] if name else "UNKNOWN"
+    for b in TOP_BRANDS:
+        if name.startswith(b) or f" {b} " in name:
+            brand = b
+            break
+
+    searchable = f"{brand} {name}"
+    if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
+        category = "general"
+        if any(t in searchable for t in HUGO_BOSS_TERMS):
+            category = "boss"
+        elif any(t in searchable for t in ARMANI_TERMS):
+            category = "armani"
+        elif any(t in searchable for t in GUCCI_TERMS):
+            category = "gucci"
+        elif any(t in searchable for t in DG_TERMS):
+            category = "dg"
+
+        return {
+            "sku": sku,
+            "brand": brand,
+            "name": name,
+            "stock": int(stock),
+            "price": str(price_val).replace(',', '.'),
+            "ean": ean if str(ean).lower() != 'nan' else "",
+            "category": category
+        }
+    return None
+
 if isinstance(data_source, str) and data_source.endswith('.xlsx'):
     print(f"Reading inventory data from: {data_source}")
     df = pd.read_excel(data_source, header=0)
@@ -113,80 +160,51 @@ if isinstance(data_source, str) and data_source.endswith('.xlsx'):
     price_col = next((c for c in cols if 'pris' in str(c).lower() or 'price' in str(c).lower()), cols[4])
 
     for _, row in df.iterrows():
-        sku = str(row.get(sku_col, '')).strip()
-        raw_name = str(row.get(name_col, '')).strip()
-        stock_val = row.get(stock_col, 0)
-        price_val = row.get(price_col, '')
-        ean = str(row.get(barcode_col, '')).strip()
-
-        if not sku or sku.lower() == 'nan' or not raw_name:
-            continue
-        try:
-            stock = float(str(stock_val).replace(',', '.')) if pd.notna(stock_val) else 0.0
-        except ValueError:
-            stock = 0.0
-
-        if stock < MIN_STOCK:
-            continue
-
-        name = clean_title(raw_name.upper())
-        brand = name.split()[0] if name else "UNKNOWN"
-        for b in TOP_BRANDS:
-            if name.startswith(b) or f" {b} " in name:
-                brand = b
-                break
-
-        searchable = f"{brand} {name}"
-        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
-            matched_items.append({
-                "sku": sku,
-                "brand": brand,
-                "name": name,
-                "stock": int(stock),
-                "price": str(price_val).replace(',', '.'),
-                "ean": ean if ean.lower() != 'nan' else ""
-            })
+        item = process_row(
+            str(row.get(sku_col, '')).strip(),
+            str(row.get(name_col, '')).strip(),
+            row.get(stock_col, 0),
+            row.get(price_col, ''),
+            str(row.get(barcode_col, '')).strip()
+        )
+        if item:
+            matched_items.append(item)
 else:
     print("Processing direct SOAP object list...")
-    for item in soap_result:
-        sku = str(getattr(item, 'sku', getattr(item, 'code', ''))).strip()
-        raw_name = str(getattr(item, 'name', getattr(item, 'description', ''))).strip()
-        stock_val = getattr(item, 'stock', getattr(item, 'quantity', 0))
-        price_val = getattr(item, 'price', 0)
-        ean = str(getattr(item, 'barcode', getattr(item, 'ean', ''))).strip()
+    for item_obj in soap_result:
+        sku = str(getattr(item_obj, 'sku', getattr(item_obj, 'code', ''))).strip()
+        raw_name = str(getattr(item_obj, 'name', getattr(item_obj, 'description', ''))).strip()
+        stock_val = getattr(item_obj, 'stock', getattr(item_obj, 'quantity', 0))
+        price_val = getattr(item_obj, 'price', 0)
+        ean = str(getattr(item_obj, 'barcode', getattr(item_obj, 'ean', ''))).strip()
 
-        try:
-            stock = float(stock_val)
-        except (ValueError, TypeError):
-            stock = 0.0
+        item = process_row(sku, raw_name, stock_val, price_val, ean)
+        if item:
+            matched_items.append(item)
 
-        if stock < MIN_STOCK:
-            continue
-
-        name = clean_title(raw_name.upper())
-        brand = name.split()[0] if name else "UNKNOWN"
-        for b in TOP_BRANDS:
-            if name.startswith(b) or f" {b} " in name:
-                brand = b
-                break
-
-        searchable = f"{brand} {name}"
-        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
-            matched_items.append({
-                "sku": sku,
-                "brand": brand,
-                "name": name,
-                "stock": int(stock),
-                "price": str(price_val).replace(',', '.'),
-                "ean": ean
-            })
-
+# Sort all items by stock descending
 matched_items.sort(key=lambda x: x["stock"], reverse=True)
-unique_items = matched_items[:EXACT_TARGET_COUNT]
+
+# Smart quota selections
+boss_items = [i for i in matched_items if i['category'] == 'boss'][:20]
+armani_items = [i for i in matched_items if i['category'] == 'armani'][:20]
+gucci_items = [i for i in matched_items if i['category'] == 'gucci'][:10]
+dg_items = [i for i in matched_items if i['category'] == 'dg'][:10]
+
+selected_skus = {i['sku'] for i in boss_items + armani_items + gucci_items + dg_items}
+unique_items = boss_items + armani_items + gucci_items + dg_items
+
+# Fill remaining slots up to 150 with general high-stock designer items
+remaining_slots = EXACT_TARGET_COUNT - len(unique_items)
+if remaining_slots > 0:
+    general_items = [i for i in matched_items if i['sku'] not in selected_skus]
+    unique_items.extend(general_items[:remaining_slots])
+
+unique_items = unique_items[:EXACT_TARGET_COUNT]
 
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as outfile:
     writer = csv.DictWriter(outfile, fieldnames=["sku", "brand", "name", "stock", "price", "ean"], delimiter=";")
     writer.writeheader()
     writer.writerows(unique_items)
 
-print(f"\n{OUTPUT_FILE} successfully saved with {len(unique_items)} products!")
+print(f"\n{OUTPUT_FILE} successfully saved with {len(unique_items)} products (Boss: {len(boss_items)}, Armani: {len(armani_items)}, Gucci: {len(gucci_items)}, D&G: {len(dg_items)})!")
