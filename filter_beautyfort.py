@@ -137,7 +137,15 @@ if len(unique_items) < EXACT_TARGET_COUNT:
 clean_output_items = []
 for idx, item in enumerate(unique_items[:EXACT_TARGET_COUNT]):
     img_url = fetch_image_by_ean(item["ean"])
-    clean_output_items.append({**item, "image": img_url})
+    clean_output_items.append({
+        "sku": item["sku"],
+        "brand": item["brand"],
+        "name": item["name"],
+        "stock": item["stock"],
+        "price": item["price"],
+        "ean": item["ean"],
+        "image": img_url
+    })
     if idx % 5 == 0: time.sleep(0.2)
 
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
