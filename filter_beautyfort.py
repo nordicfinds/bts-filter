@@ -61,17 +61,19 @@ def fetch_live_soap_catalog():
     try:
         client = Client(WSDL_URL)
         
-        # Build standard SOAP authentication header using lxml
         header_element = etree.Element('{http://www.beautyfort.com/api/}AuthHeader')
         user_elem = etree.SubElement(header_element, '{http://www.beautyfort.com/api/}username')
         user_elem.text = USERNAME
         secret_elem = etree.SubElement(header_element, '{http://www.beautyfort.com/api/}secret')
         secret_elem.text = SECRET_KEY
 
-        print("Calling SOAP method: GetStockFile with auth headers")
-        response = client.service.GetStockFile(SortBy="sku", _soapheaders=[header_element])
+        print("Calling SOAP method: GetStockFile with format and sorting")
+        response = client.service.GetStockFile(
+            StockFileFormat="excel",
+            SortBy="sku",
+            _soapheaders=[header_element]
+        )
         
-        # If GetStockFile returns a download URL for the spreadsheet
         if isinstance(response, str) and response.startswith('http'):
             print(f"Downloading live stock file from URL: {response}")
             file_resp = requests.get(response, timeout=30)
@@ -92,7 +94,6 @@ def fetch_live_soap_catalog():
 matched_items = []
 soap_result = fetch_live_soap_catalog()
 
-# Determine data source (either downloaded file from SOAP URL or fallback local spreadsheet)
 data_source = soap_result
 if not data_source:
     print("Falling back to local spreadsheet file...")
@@ -101,7 +102,6 @@ if not data_source:
         raise SystemExit("No API data or local Excel file available.")
     data_source = excel_files[0]
 
-# Process the spreadsheet
 if isinstance(data_source, str) and data_source.endswith('.xlsx'):
     print(f"Reading inventory data from: {data_source}")
     df = pd.read_excel(data_source, header=0)
@@ -181,11 +181,9 @@ else:
                 "ean": ean
             })
 
-# Sort by highest stock first and trim to target count
 matched_items.sort(key=lambda x: x["stock"], reverse=True)
 unique_items = matched_items[:EXACT_TARGET_COUNT]
 
-# Save filtered CSV for BaseLinker
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as outfile:
     writer = csv.DictWriter(outfile, fieldnames=["sku", "brand", "name", "stock", "price", "ean"], delimiter=";")
     writer.writeheader()
