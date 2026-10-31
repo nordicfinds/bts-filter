@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 API_ENDPOINT = "https://www.beautyfort.com/api/soap"
 API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
-TEST_MODE = "false"  # Set to "true" if using a test account
+TEST_MODE = "false"
 
 # Priority 1: Top-selling model names for Nordic market
 TOP_MODELS = [
@@ -53,14 +53,13 @@ def clean_title(title_str):
 def fetch_beautyfort_catalog():
     print("Generating Beauty Fort WS-Security Authentication headers...")
     
-    # Nonce and Created timestamp matching their PHP specification
     nonce = uuid.uuid4().hex[:16]
     created = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
     
-    # Password: sha1 hash of nonce + created + secret, then base64 encoded
-    combined = f"{nonce}{created}{API_SECRET}"
-    sha1_hash = hashlib.sha1(combined.encode('utf-8')).digest()
-    password = base64.b64encode(sha1_hash).decode('utf-8')
+    # Password formula: base64_encode(sha1(nonce . created . secret)) using binary digest
+    raw_str = f"{nonce}{created}{API_SECRET}"
+    sha1_binary = hashlib.sha1(raw_str.encode('utf-8')).digest()
+    password = base64.b64encode(sha1_binary).decode('utf-8')
 
     soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:bf="http://www.beautyfort.com/api/">
@@ -112,13 +111,9 @@ top_sellers = []
 brand_fallbacks = []
 
 try:
-    # Strip namespaces or handle XML parsing flexibly
     root = ET.fromstring(raw_xml)
-    
-    # Iterate through XML nodes to find product items
     for elem in root.iter():
         if elem.tag.endswith('StockFileItem') or elem.tag.endswith('item') or elem.tag.endswith('Product'):
-            # Extract fields using local-name matching to avoid namespace prefix issues
             sku = ''
             name = ''
             stock_str = '0'
