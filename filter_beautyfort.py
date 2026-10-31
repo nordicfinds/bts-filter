@@ -1,7 +1,6 @@
 import os
 import re
 import csv
-import time
 import requests
 import pandas as pd
 from zeep import Client
@@ -51,32 +50,6 @@ def clean_title(title_str):
         cleaned = re.sub(term, "", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", cleaned).strip()
 
-def fetch_image_by_ean(ean):
-    clean_ean = re.sub(r"\D", "", str(ean))
-    if not clean_ean or len(clean_ean) < 8:
-        return ""
-    first_ean = clean_ean[:13] if len(clean_ean) >= 13 else clean_ean
-    headers = {"User-Agent": "NordicFindsEcom/1.0"}
-
-    try:
-        url = f"https://world.openbeautyfacts.org/api/v0/product/{first_ean}.json"
-        res = requests.get(url, headers=headers, timeout=3).json()
-        if res.get("status") == 1:
-            img = res.get("product", {}).get("image_front_url")
-            if img: return img
-    except Exception:
-        pass
-
-    try:
-        url = f"https://world.openfoodfacts.org/api/v0/product/{first_ean}.json"
-        res = requests.get(url, headers=headers, timeout=3).json()
-        if res.get("status") == 1:
-            img = res.get("product", {}).get("image_front_url")
-            if img: return img
-    except Exception:
-        pass
-    return ""
-
 def fetch_live_soap_catalog():
     try:
         client = Client(WSDL_URL)
@@ -97,7 +70,7 @@ matched_items = []
 soap_result = fetch_live_soap_catalog()
 data_source = soap_result if soap_result else next((f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')), None)
 
-def process_row(sku, raw_name, stock_val, price_val, ean):
+def process_row(sku, raw_name, stock_val, price_val, ean, img_raw):
     if not sku or sku.lower() == 'nan' or not raw_name: return None
     try: stock = float(str(stock_val).replace(',', '.')) if pd.notna(stock_val) else 0.0
     except ValueError: stock = 0.0
@@ -114,14 +87,38 @@ def process_row(sku, raw_name, stock_val, price_val, ean):
               "armani" if any(t in searchable for t in ARMANI_TERMS) else \
               "gucci" if any(t in searchable for t in GUCCI_TERMS) else \
               "dg" if any(t in searchable for t in DG_TERMS) else "general"
-        return {"sku": sku, "brand": brand, "name": name, "stock": int(stock), "price": str(price_val).replace(',', '.'), "ean": ean if str(ean).lower() != 'nan' else "", "_category": cat}
+        
+        # Determine image URL directly from BeautyFort row data or direct CDN pattern
+        img_url = str(img_raw).strip() if pd.notna(img_raw) and str(img_raw).startswith("http") else f"https://www.beautyfort.com/images/products/{sku}.jpg"
+
+        return {
+            "sku": sku,
+            "brand": brand,
+            "name": name,
+            "stock": int(stock),
+            "price": str(price_val).replace(',', '.'),
+            "ean": ean if str(ean).lower() != 'nan' else "",
+            "image": img_url,
+            "_category": cat
+        }
     return None
 
 if isinstance(data_source, str) and data_source.endswith('.xlsx'):
     df = pd.read_excel(data_source, header=0)
     cols = df.columns
+    
+    # Locate column headers dynamically
+    img_col = next((c for c in cols if 'bild' in str(c).lower() or 'image' in str(c).lower() or 'url' in str(c).lower()), None)
+    
     for _, row in df.iterrows():
-        item = process_row(str(row.get(cols[1], '')).strip(), str(row.get(cols[2], '')).strip(), row.get(cols[3], 0), row.get(cols[4], ''), str(row.get(cols[0], '')).strip())
+        item = process_row(
+            str(row.get(cols[1], '')).strip(),
+            str(row.get(cols[2], '')).strip(),
+            row.get(cols[3], 0),
+            row.get(cols[4], ''),
+            str(row.get(cols[0], '')).strip(),
+            row.get(img_col, '') if img_col else ''
+        )
         if item: matched_items.append(item)
 
 matched_items.sort(key=lambda x: x["stock"], reverse=True)
@@ -135,8 +132,7 @@ if len(unique_items) < EXACT_TARGET_COUNT:
     unique_items.extend([i for i in matched_items if i['sku'] not in selected_skus][:EXACT_TARGET_COUNT - len(unique_items)])
 
 clean_output_items = []
-for idx, item in enumerate(unique_items[:EXACT_TARGET_COUNT]):
-    img_url = fetch_image_by_ean(item["ean"])
+for item in unique_items[:EXACT_TARGET_COUNT]:
     clean_output_items.append({
         "sku": item["sku"],
         "brand": item["brand"],
@@ -144,11 +140,11 @@ for idx, item in enumerate(unique_items[:EXACT_TARGET_COUNT]):
         "stock": item["stock"],
         "price": item["price"],
         "ean": item["ean"],
-        "image": img_url
+        "image": item["image"]
     })
-    if idx % 5 == 0: time.sleep(0.2)
 
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=["sku", "brand", "name", "stock", "price", "ean", "image"], delimiter=";")
     writer.writerows(clean_output_items)
-print("beautyfort_filtered.csv successfully updated with images!")
+
+print("beautyfort_filtered.csv successfully updated with direct image URLs!")
