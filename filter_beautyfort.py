@@ -87,8 +87,9 @@ def process_row(sku, raw_name, stock_val, price_val, ean):
               "gucci" if any(t in searchable for t in GUCCI_TERMS) else \
               "dg" if any(t in searchable for t in DG_TERMS) else "general"
         
-        # Guaranteed direct product image URL pattern for BeautyFort catalog items
-        img_url = f"https://www.beautyfort.com/images/products/{sku}.jpg"
+        # Free image proxy URL to bypass hotlink blocking in BaseLinker
+        direct_url = f"https://www.beautyfort.com/images/products/{sku}.jpg"
+        proxy_url = f"https://wsrv.nl/?url={direct_url}&output=jpg"
 
         return {
             "sku": sku,
@@ -97,7 +98,7 @@ def process_row(sku, raw_name, stock_val, price_val, ean):
             "stock": int(stock),
             "price": str(price_val).replace(',', '.'),
             "ean": ean if str(ean).lower() != 'nan' else "",
-            "image": img_url,
+            "image": proxy_url,
             "_category": cat
         }
     return None
@@ -141,4 +142,4 @@ with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=["sku", "brand", "name", "stock", "price", "ean", "image"], delimiter=";")
     writer.writerows(clean_output_items)
 
-print("beautyfort_filtered.csv successfully updated with direct image URLs!")
+print("beautyfort_filtered.csv updated with wsrv proxy image URLs!")
