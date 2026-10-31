@@ -12,17 +12,44 @@ API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
 
-# Top Designer Brands & Bestsellers to search for inside the title
-DESIGNER_KEYWORDS = [
-    "SAUVAGE", "DIOR", "CHANEL", "BLEU DE CHANEL", "VERSACE", "EROS",
-    "ARMANI", "ACQUA DI GIO", "YSL", "YVES SAINT LAURENT", "BLACK OPIUM",
-    "PACO RABANNE", "1 MILLION", "ONE MILLION", "INVICTUS", "DOLCE", "GABBANA",
-    "HUGO BOSS", "BOSS", "GUCCI", "PRADA", "BURBERRY", "CALVIN KLEIN", "CK",
-    "CAROLINA HERRERA", "GAULTIER", "JEAN PAUL GAULTIER", "TOM FORD", "HERMES", "BVLGARI"
+# Strict Curated List of High-Demand Designer Bestsellers & Brands
+TOP_MODELS = [
+    # Dior
+    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "JADORE", "MISS DIOR", "DIOR HOMME", "DIOR",
+    # Chanel
+    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE HOMME", "CHANCE", "N°5", "CHANEL",
+    # Versace
+    "EROS", "DYLAN BLUE", "BRIGHT CRYSTAL", "EROS FLAME", "VERSACE",
+    # Armani / Giorgio Armani
+    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI PASSIONE", "ARMANI CODE", "ARMANI",
+    # YSL (Yves Saint Laurent)
+    "BLACK OPIUM", "LIBRE", "YSL Y", "Y HOMME", "MON PARIS", "YSL", "YVES SAINT LAURENT",
+    # Paco Rabanne
+    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", "LADY MILLION", "RABANNE",
+    # Dolce & Gabbana
+    "LIGHT BLUE", "THE ONE", "K BY DOLCE", "DEVOTION", "DOLCE & GABBANA", "DOLCE",
+    # Hugo Boss
+    "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME", "HUGO BOSS", "BOSS",
+    # Gucci
+    "GUCCI BLOOM", "GUCCI GUILTY", "FLORA GORGEOUS", "MEMOIRE", "GUCCI",
+    # Prada
+    "PRADA LUNA ROSSA", "PARADOXE", "PRADA CANDY", "PRADA",
+    # Burberry
+    "BURBERRY HER", "BURBERRY GODDESS", "MR BURBERRY", "LONDON FOR MEN", "BURBERRY",
+    # Calvin Klein
+    "CK ONE", "ETERNITY", "EUPHORIA", "CK BE", "CALVIN KLEIN",
+    # Carolina Herrera
+    "GOOD GIRL", "BAD BOY", "212 VIP", "CAROLINA HERRERA",
+    # Jean Paul Gaultier
+    "LE MALE", "SCANDAL", "ULTRA MALE", "DIVINE", "GAULTIER",
+    # Tom Ford
+    "BLACK ORCHID", "OMBRÉ LEATHER", "OMBRE LEATHER", "NEROLI PORTOFINO", "TOBACCO VANILLE", "TOM FORD",
+    # Hermès & Bvlgari
+    "TERRE D'HERMES", "H24", "BVLGARI MAN", "OMNIA", "HERMES", "BVLGARI"
 ]
 
 EXACT_TARGET_COUNT = 150
-MIN_STOCK = 5  # Updated minimum stock threshold to 5
+MIN_STOCK = 5
 
 def clean_price(val):
     if not val:
@@ -91,92 +118,85 @@ def fetch_beautyfort_catalog():
     </soap:Body>
 </soap:Envelope>"""
 
-    headers = {
-        'Content-Type': 'text/xml; charset=UTF-8',
-        'Accept': 'text/xml'
-    }
-
+    headers = {'Content-Type': 'text/xml; charset=UTF-8', 'Accept': 'text/xml'}
     response = requests.post(API_ENDPOINT, data=soap_envelope, headers=headers, timeout=60)
     if response.status_code != 200:
-        raise Exception(f"API request failed with status {response.status_code}: {response.text}")
-
+        raise Exception(f"API request failed: {response.status_code}")
     return response.text
 
 raw_xml = fetch_beautyfort_catalog()
-print("Received SOAP response. Extracting products...")
+print("Received SOAP response. Parsing and applying strict bestseller filters...")
 
 matched_items = []
-fallback_items = []
 
 try:
     root = ET.fromstring(raw_xml)
     
     for elem in root.iter():
-        sku, full_name, stock_str, price_str, ean, image_url, xml_brand = '', '', '0', '', '', '', ''
+        sku, full_name, stock_str, price_str, ean, image_url, xml_brand = '', '', '', '', '', '', ''
         
         for child in elem:
             t = child.tag.split('}')[-1].lower()
+            val = child.text.strip() if child.text else ''
+            
             if t in ['stockcode', 'sku', 'code']:
-                sku = child.text or ''
+                sku = val
             elif t in ['fullname', 'name', 'description', 'title']:
-                if child.text and len(child.text.strip()) > len(full_name):
-                    full_name = child.text.strip()
+                if len(val) > len(full_name):
+                    full_name = val
             elif t in ['brand']:
-                xml_brand = child.text or ''
+                xml_brand = val
             elif t in ['quantity', 'stock', 'stocklevel', 'qty']:
-                stock_str = child.text or '0'
+                stock_str = val
             elif t in ['price', 'lastpurchasedprice', 'cost']:
-                price_str = child.text or ''
+                price_str = val
             elif t in ['barcode', 'ean', 'upc']:
-                ean = child.text or ''
+                ean = val
             elif t in ['imageurl', 'image', 'picture', 'photo']:
-                image_url = child.text or ''
+                image_url = val
 
         if not sku or not full_name:
             continue
 
+        # Parse stock safely
         try:
-            stock = float(stock_str)
+            stock = float(re.sub(r'[^0-9\.]', '', stock_str)) if stock_str else 0.0
         except ValueError:
             stock = 0.0
 
-        # Filters out anything under stock of 5
+        # Strict Minimum Stock Rule
         if stock < MIN_STOCK:
             continue
 
-        brand = xml_brand.strip().upper() if xml_brand else extract_brand(full_name)
+        brand = xml_brand.upper() if xml_brand else extract_brand(full_name)
         cleaned_name = clean_title(full_name.upper())
 
-        item = {
-            'sku': sku,
-            'brand': brand,
-            'name': cleaned_name,
-            'stock': int(stock),
-            'price': clean_price(price_str),
-            'ean': ean,
-            'image': image_url
-        }
-
-        if any(kw in cleaned_name for kw in DESIGNER_KEYWORDS):
-            matched_items.append(item)
-        else:
-            fallback_items.append(item)
+        # Strict Bestseller Model / Brand Filtering (No random products)
+        if any(model in cleaned_name for model in TOP_MODELS):
+            matched_items.append({
+                'sku': sku,
+                'brand': brand,
+                'name': cleaned_name,
+                'stock': int(stock),
+                'price': clean_price(price_str),
+                'ean': ean,
+                'image': image_url
+            })
 
 except Exception as e:
-    print(f"Error parsing XML catalog: {e}")
+    print(f"Parser Error: {e}")
 
-combined_items = matched_items + fallback_items
-
+# Deduplicate by SKU and limit to exact target count
 seen_skus = set()
 unique_items = []
-for item in combined_items:
+for item in matched_items:
     if item['sku'] not in seen_skus:
         seen_skus.add(item['sku'])
         unique_items.append(item)
     if len(unique_items) >= EXACT_TARGET_COUNT:
         break
 
-print(f"Successfully extracted {len(unique_items)} items with stock >= {MIN_STOCK}.")
+print(f"Successfully matched {len(unique_items)} specific designer bestsellers with stock >= {MIN_STOCK}.")
 
 with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
     fieldnames = ['sku', 'brand', 'name', 'stock', 'price', 'ean', 'image']
