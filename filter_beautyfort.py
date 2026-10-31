@@ -59,22 +59,24 @@ def fetch_live_soap_catalog():
     try:
         client = Client(WSDL_URL)
         
-        # Print available operations for debugging
-        for service in client.wsdl.services.values():
-            for port in service.ports.values():
-                operations = list(port.binding.operations.keys())
-                print(f"Available SOAP Operations in WSDL: {operations}")
+        # Safely list all available SOAP operations in the logs
+        operations = [op for op in dir(client.service) if not op.startswith('_')]
+        print(f"Available SOAP Operations: {operations}")
         
-        # Try calling the standard stock list method (we can update this once we see the logs)
-        if hasattr(client.service, 'getStockList'):
-            return client.service.getStockList(USERNAME, SECRET_KEY)
-        elif hasattr(client.service, 'getProducts'):
-            return client.service.getProducts(USERNAME, SECRET_KEY)
-        elif hasattr(client.service, 'getStock'):
-            return client.service.getStock(USERNAME, SECRET_KEY)
-        else:
-            print("Operation name not recognized automatically. Check printed operations above.")
-            return None
+        # Test common method names
+        for op_name in ['getStockList', 'GetStockList', 'getProducts', 'GetProducts', 'stockList', 'getItems']:
+            if hasattr(client.service, op_name):
+                print(f"Calling SOAP method: {op_name}")
+                method = getattr(client.service, op_name)
+                return method(USERNAME, SECRET_KEY)
+                
+        # Fallback to first available operation if names differ
+        if operations:
+            method = getattr(client.service, operations[0])
+            print(f"Calling primary available operation: {operations[0]}")
+            return method(USERNAME, SECRET_KEY)
+            
+        return None
             
     except Fault as f:
         print(f"SOAP Fault Error: {f}")
