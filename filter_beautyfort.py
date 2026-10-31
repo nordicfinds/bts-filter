@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 # ============ SETTINGS ============
 API_ENDPOINT = "https://www.beautyfort.com/api/soap"
 API_USERNAME = os.environ.get("BF_USERNAME", "Base.com")
-API_SECRET = os.environ.get("BF_SECRET", "JfPciKxq")
+API_SECRET = os.environ.get("BF_SECRET", "JfPciKxq")  # Your API secret key
 TEST_MODE = "false"
 
 EXACT_TARGET_COUNT = 150
@@ -135,7 +135,7 @@ def fetch_response():
             print(last_text[:800])
             continue
         return last_text
-    print("\nBoth login methods failed. Check username/secret, or send me the error above.")
+    print("\nBoth login methods failed. Check username/secret.")
     raise SystemExit(1)
 
 
@@ -247,22 +247,26 @@ print(f"Products found in the response: {len(all_products)}")
 if not all_products:
     print("\nNO PRODUCTS FOUND. Tag names seen in the data:")
     print(sorted(tag_counter.items(), key=lambda x: -x[1])[:25])
-    print("Please send me the first 1500 characters printed above.")
     raise SystemExit(1)
 
 seen = set()
 unique_items = []
 too_low_stock = 0
+non_empty_stock_count = 0
 
 for sku, full_name, xml_brand, stock_str, price_str, ean in all_products:
     if sku in seen:
         continue
     seen.add(sku)
 
+    if stock_str:
+        non_empty_stock_count += 1
+
     try:
         stock = float(re.sub(r"[^0-9\.]", "", stock_str)) if stock_str else 0.0
     except ValueError:
         stock = 0.0
+
     if stock < MIN_STOCK:
         too_low_stock += 1
         continue
@@ -281,6 +285,7 @@ for sku, full_name, xml_brand, stock_str, price_str, ean in all_products:
             "ean": ean,
         })
 
+print(f"Items with non-empty quantity values: {non_empty_stock_count}")
 print(f"Removed because stock < {MIN_STOCK}: {too_low_stock}")
 print(f"Designer items matched: {len(unique_items)}")
 
