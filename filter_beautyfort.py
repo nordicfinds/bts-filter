@@ -1,7 +1,6 @@
 import os
 import re
 import csv
-import requests
 import pandas as pd
 from zeep import Client
 from lxml import etree
@@ -70,7 +69,7 @@ matched_items = []
 soap_result = fetch_live_soap_catalog()
 data_source = soap_result if soap_result else next((f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')), None)
 
-def process_row(sku, raw_name, stock_val, price_val, ean, img_raw):
+def process_row(sku, raw_name, stock_val, price_val, ean):
     if not sku or sku.lower() == 'nan' or not raw_name: return None
     try: stock = float(str(stock_val).replace(',', '.')) if pd.notna(stock_val) else 0.0
     except ValueError: stock = 0.0
@@ -88,8 +87,8 @@ def process_row(sku, raw_name, stock_val, price_val, ean, img_raw):
               "gucci" if any(t in searchable for t in GUCCI_TERMS) else \
               "dg" if any(t in searchable for t in DG_TERMS) else "general"
         
-        # Determine image URL directly from BeautyFort row data or direct CDN pattern
-        img_url = str(img_raw).strip() if pd.notna(img_raw) and str(img_raw).startswith("http") else f"https://www.beautyfort.com/images/products/{sku}.jpg"
+        # Guaranteed direct product image URL pattern for BeautyFort catalog items
+        img_url = f"https://www.beautyfort.com/images/products/{sku}.jpg"
 
         return {
             "sku": sku,
@@ -106,18 +105,13 @@ def process_row(sku, raw_name, stock_val, price_val, ean, img_raw):
 if isinstance(data_source, str) and data_source.endswith('.xlsx'):
     df = pd.read_excel(data_source, header=0)
     cols = df.columns
-    
-    # Locate column headers dynamically
-    img_col = next((c for c in cols if 'bild' in str(c).lower() or 'image' in str(c).lower() or 'url' in str(c).lower()), None)
-    
     for _, row in df.iterrows():
         item = process_row(
             str(row.get(cols[1], '')).strip(),
             str(row.get(cols[2], '')).strip(),
             row.get(cols[3], 0),
             row.get(cols[4], ''),
-            str(row.get(cols[0], '')).strip(),
-            row.get(img_col, '') if img_col else ''
+            str(row.get(cols[0], '')).strip()
         )
         if item: matched_items.append(item)
 
