@@ -59,10 +59,14 @@ def fetch_live_soap_catalog():
     print(f"Connecting to Beauty Fort SOAP API ({WSDL_URL})...")
     try:
         client = Client(WSDL_URL)
-        print("Calling SOAP method: GetStockFile")
+        print("Calling SOAP method: GetStockFile with SortBy parameter")
         
-        # Invoke the correct stock file retrieval method
-        response = client.service.GetStockFile(USERNAME, SECRET_KEY)
+        # Pass SortBy argument as required by GetStockFileRequest schema
+        response = client.service.GetStockFile(
+            username=USERNAME,
+            secret=SECRET_KEY,
+            SortBy="sku"
+        )
         
         # If GetStockFile returns a download URL for the spreadsheet
         if isinstance(response, str) and response.startswith('http'):
@@ -94,7 +98,7 @@ if not data_source:
         raise SystemExit("No API data or local Excel file available.")
     data_source = excel_files[0]
 
-# Process the spreadsheet (whether downloaded live via SOAP or local fallback)
+# Process the spreadsheet
 if isinstance(data_source, str) and data_source.endswith('.xlsx'):
     print(f"Reading inventory data from: {data_source}")
     df = pd.read_excel(data_source, header=0)
@@ -140,7 +144,6 @@ if isinstance(data_source, str) and data_source.endswith('.xlsx'):
                 "ean": ean if ean.lower() != 'nan' else ""
             })
 else:
-    # Handle if SOAP returns structured product objects directly
     print("Processing direct SOAP object list...")
     for item in soap_result:
         sku = str(getattr(item, 'sku', getattr(item, 'code', ''))).strip()
