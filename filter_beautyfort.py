@@ -5,7 +5,6 @@ import hashlib
 import time
 import uuid
 from zeep import Client, Settings
-from zeep.transports import Transport
 import requests
 
 WSDL_URL = "https://www.beautyfort.com/api/wsdl/wsdl.wsdl"
@@ -65,7 +64,7 @@ def extract_brand(title_str):
     return " ".join(words[:2]).upper() if len(words) >= 2 else title_str.upper()
 
 print("Initializing Zeep SOAP client with official WSDL...")
-settings = Settings(strict=False, xml_strict=False)
+settings = Settings(strict=False)
 client = Client(WSDL_URL, settings=settings)
 
 # Generate WS-Security authentication headers
@@ -110,8 +109,6 @@ matched_items = []
 
 if response:
     print("SOAP response received successfully. Processing catalog...")
-    # Depending on how zeep parses the response, iterate through items safely
-    # (zeep usually returns a list or an object containing the items/rows)
     items_list = response if isinstance(response, (list, tuple)) else getattr(response, 'StockFileItem', []) or getattr(response, 'item', []) or []
     
     for row in items_list:
@@ -146,7 +143,6 @@ if response:
                 'ean': ean_val
             })
 
-# Deduplicate and limit to target count
 seen_skus = set()
 unique_items = []
 for item in matched_items:
