@@ -1,13 +1,10 @@
 import csv
-import urllib.request
-import urllib.error
-import hashlib
-import time
-import json
 import re
+from zeep import Client
 
 USERNAME = "Base.com"
 SECRET = "JfPciKxq"
+WSDL_URL = "https://www.beautyfort.com/api/wsdl/v4/wsdl.wsdl"
 
 # Priority 1: Top-selling model names for Nordic market
 TOP_MODELS = [
@@ -47,68 +44,41 @@ def clean_title(title_str):
         cleaned = re.sub(term, '', cleaned, flags=re.IGNORECASE)
     return re.sub(r'\s+', ' ', cleaned).strip()
 
-def build_beautyfort_headers():
-    timestamp = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
-    token = f"token_{int(time.time())}"
-    raw_sig = f"{token}{timestamp}{SECRET}"
-    password_hash = hashlib.sha256(raw_sig.encode('utf-8')).hexdigest()
-
-    return {
-        'X-Username': USERNAME,
-        'X-Token': token,
-        'X-Created': timestamp,
-        'X-Password': password_hash,
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-    }
-
-def fetch_beautyfort_catalog():
-    # Official endpoint format from Beauty Fort API v5 docs
-    endpoints = [
-        "https://api.beautyfort.com/getstockfile",
-        "https://api.beautyfort.com/GetStockFile",
-        "https://api.beautyfort.com/v5/getstockfile",
-        "https://api.beautyfort.com/products"
-    ]
+def fetch_beautyfort_soap_stock():
+    print("Connecting to Beauty Fort SOAP client...")
+    client = Client(WSDL_URL)
     
-    headers = build_beautyfort_headers()
-    
-    for url in endpoints:
-        try:
-            print(f"Trying Beauty Fort endpoint: {url}")
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                content = resp.read().decode('utf-8', errors='ignore')
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError:
-                    return content
-        except urllib.error.HTTPError as e:
-            print(f"Endpoint {url} returned HTTP {e.code}")
-        except Exception as e:
-            print(f"Endpoint {url} error: {e}")
-            
-    raise Exception("Could not reach any valid Beauty Fort API endpoint.")
+    print("Calling GetStockFile via SOAP...")
+    response = client.service.GetStockFile(
+        username=USERNAME,
+        secret=SECRET
+    )
+    return response
 
-raw_data = fetch_beautyfort_catalog()
+raw_data = fetch_beautyfort_soap_stock()
 
 top_sellers = []
 brand_fallbacks = []
 
-if isinstance(raw_data, (dict, list)):
-    items = raw_data.get('products', raw_data.get('items', raw_data)) if isinstance(raw_data, dict) else raw_data
+if raw_data:
+    items = raw_data if isinstance(raw_data, list) else getattr(raw_data, 'item', [])
+    
     for item in items:
-        stock = float(item.get('stock', item.get('quantity', item.get('qty', 0))))
+        sku = str(getattr(item, 'sku', item.get('sku', '')))
+        name = str(getattr(item, 'name', item.get('name', ''))).upper()
+        stock = float(getattr(item, 'stock', item.get('stock', 0)))
+        price = clean_price(getattr(item, 'price', item.get('price', '')))
+        ean = str(getattr(item, 'ean', item.get('ean', '')))
+
         if stock < MIN_STOCK:
             continue
 
-        name = str(item.get('name', item.get('title', item.get('description', '')))).upper()
         product_dict = {
-            'sku': str(item.get('sku', item.get('id', ''))),
+            'sku': sku,
             'name': clean_title(name),
             'stock': int(stock),
-            'price': clean_price(item.get('price', item.get('wholesale_price', ''))),
-            'ean': str(item.get('ean', item.get('barcode', '')))
+            'price': price,
+            'ean': ean
         }
 
         if any(model in name for model in TOP_MODELS):
