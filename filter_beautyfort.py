@@ -12,7 +12,7 @@ API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
 
-# Priority 1: Top-selling model names for Nordic market
+# Your exact Nordic bestseller model list
 TOP_MODELS = [
     "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME", "HUGO DEEP RED", "BOSS ORANGE",
     "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR",
@@ -25,16 +25,8 @@ TOP_MODELS = [
     "HERO", "BURBERRY HER", "CK ONE", "ETERNITY", "EUPHORIA", "LÉ MALE", "DIVINE", "SCANDAL"
 ]
 
-# Priority 2: General brand fallbacks
-TARGET_BRANDS = [
-    "HUGO BOSS", "BOSS", "DIOR", "CHANEL", "ARMANI", "GIORGIO ARMANI", 
-    "YVES SAINT LAURENT", "YSL", "PACO RABANNE", "RABANNE", 
-    "MONTBLANC", "VERSACE", "DOLCE & GABBANA", "BURBERRY", 
-    "CALVIN KLEIN", "JEAN PAUL GAULTIER", "TOM FORD", "PRADA"
-]
-
 EXACT_TARGET_COUNT = 150
-MIN_STOCK = 5
+MIN_STOCK = 1
 
 def clean_price(val):
     if not val:
@@ -52,12 +44,9 @@ def clean_title(title_str):
 
 def fetch_beautyfort_catalog():
     print("Generating Beauty Fort WS-Security Authentication headers...")
-    
-    nonce = uniqid = uuid.uuid4().hex[:16]
+    nonce = uuid.uuid4().hex[:16]
     created = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
     
-    # PHP exact formula: base64_encode(sha1($nonce.$created.API_SECRET)) 
-    # where sha1() in PHP returns the 40-char hex string.
     raw_str = f"{nonce}{created}{API_SECRET}"
     sha1_hex = hashlib.sha1(raw_str.encode('utf-8')).hexdigest()
     password = base64.b64encode(sha1_hex.encode('utf-8')).decode('utf-8')
@@ -106,72 +95,75 @@ def fetch_beautyfort_catalog():
     return response.text
 
 raw_xml = fetch_beautyfort_catalog()
-print("Successfully received SOAP XML catalog payload.")
+print("Successfully received SOAP XML catalog payload. Filtering for target models...")
 
-top_sellers = []
-brand_fallbacks = []
+matched_items = []
+fallback_items = []
 
 try:
     root = ET.fromstring(raw_xml)
+    item_count = 0
+    
     for elem in root.iter():
-        if elem.tag.endswith('StockFileItem') or elem.tag.endswith('item') or elem.tag.endswith('Product'):
-            sku = ''
-            name = ''
-            stock_str = '0'
-            price_str = ''
-            ean = ''
+        tag_name = elem.tag.split('}')[-1]
+        if 'item' in tag_name.lower() or 'stockfileitem' in tag_name.lower():
+            sku, name, stock_str, price_str, ean = '', '', '0', '', ''
             
             for child in elem:
-                tag_lower = child.tag.split('}')[-1].lower()
-                if tag_lower in ['stockcode', 'sku']:
+                t = child.tag.split('}')[-1].lower()
+                if t in ['stockcode', 'sku']:
                     sku = child.text or ''
-                elif tag_lower in ['fullname', 'name', 'description']:
-                    name = (child.text or '').upper()
-                elif tag_lower in ['quantity', 'stock', 'stocklevel']:
+                elif t in ['fullname', 'name', 'description']:
+                    if child.text and len(child.text.strip()) > len(name):
+                        name = child.text.strip()
+                elif t in ['quantity', 'stock', 'stocklevel']:
                     stock_str = child.text or '0'
-                elif tag_lower in ['price', 'lastpurchasedprice']:
+                elif t in ['price', 'lastpurchasedprice']:
                     price_str = child.text or ''
-                elif tag_lower in ['barcode', 'ean']:
+                elif t in ['barcode', 'ean']:
                     ean = child.text or ''
 
+            if not name:
+                continue
+                
+            item_count += 1
             try:
                 stock = float(stock_str)
             except ValueError:
                 stock = 0
 
-            if stock < MIN_STOCK or not name:
+            if stock < MIN_STOCK:
                 continue
 
             product_dict = {
                 'sku': sku,
-                'name': clean_title(name),
+                'name': clean_title(name.upper()),
                 'stock': int(stock),
                 'price': clean_price(price_str),
                 'ean': ean
             }
+            
+            # Check if it matches your specific TOP_MODELS list
+            upper_name = product_dict['name']
+            if any(model in upper_name for model in TOP_MODELS):
+                matched_items.append(product_dict)
+            else:
+                fallback_items.append(product_dict)
+            
+    print(f"Scanned {item_count} items. Matched {len(matched_items)} items from your TOP_MODELS list.")
 
-            if any(model in name for model in TOP_MODELS):
-                top_sellers.append(product_dict)
-            elif any(brand in name for brand in TARGET_BRANDS):
-                brand_fallbacks.append(product_dict)
-                
 except Exception as e:
     print(f"Error parsing XML catalog: {e}")
 
-top_sellers.sort(key=lambda x: x['stock'], reverse=True)
-brand_fallbacks.sort(key=lambda x: x['stock'], reverse=True)
+# Prioritize exact top models first, then fill up to EXACT_TARGET_COUNT if needed
+final_selected = (matched_items + fallback_items)[:EXACT_TARGET_COUNT]
 
-final_selected = (top_sellers + brand_fallbacks)[:EXACT_TARGET_COUNT]
-
-print(f"Matched {len(top_sellers)} top models and {len(brand_fallbacks)} brand fallbacks.")
 print(f"Exporting top {len(final_selected)} items to beautyfort_filtered.csv...")
 
-if final_selected:
-    with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
-        fieldnames = ['sku', 'name', 'stock', 'price', 'ean']
-        writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=';')
-        writer.writeheader()
-        writer.writerows(final_selected)
-    print("beautyfort_filtered.csv successfully created!")
-else:
-    print("Warning: No products matched criteria or catalog was empty.")
+with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
+    fieldnames = ['sku', 'name', 'stock', 'price', 'ean']
+    writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=';')
+    writer.writeheader()
+    writer.writerows(final_selected)
+
+print("beautyfort_filtered.csv successfully created!")
