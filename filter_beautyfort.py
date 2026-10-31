@@ -12,31 +12,22 @@ API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
 
-# Preferred Bestseller Models
-TOP_MODELS = [
-    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR", "DIOR HOMME",
-    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE HOMME", "CHANCE", "N°5",
-    "EROS", "DYLAN BLUE", "BRIGHT CRYSTAL", "EROS FLAME",
-    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI PASSIONE", "ARMANI CODE",
-    "BLACK OPIUM", "LIBRE", "YSL Y", "Y HOMME", "MON PARIS",
-    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", "LADY MILLION",
-    "LIGHT BLUE", "THE ONE", "K BY DOLCE", "DEVOTION",
-    "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME",
-    "GUCCI BLOOM", "GUCCI GUILTY", "FLORA GORGEOUS", "MEMOIRE",
-    "PRADA LUNA ROSSA", "PARADOXE", "PRADA CANDY",
-    "BURBERRY HER", "BURBERRY GODDESS", "MR BURBERRY", "LONDON FOR MEN",
-    "CK ONE", "ETERNITY", "EUPHORIA", "CK BE",
-    "GOOD GIRL", "BAD BOY", "212 VIP",
-    "LE MALE", "SCANDAL", "ULTRA MALE", "DIVINE",
-    "BLACK ORCHID", "OMBRÉ LEATHER", "NEROLI PORTOFINO", "TOBACCO VANILLE",
-    "TERRE D'HERMES", "H24", "BVLGARI MAN", "OMNIA"
-]
-
-# Designer Brands for fallback filling (prevents empty file outputs)
-FALLBACK_BRANDS = [
-    "DIOR", "CHANEL", "VERSACE", "ARMANI", "YVES SAINT LAURENT", "YSL", 
-    "PACO RABANNE", "DOLCE & GABBANA", "HUGO BOSS", "GUCCI", "PRADA", 
-    "BURBERRY", "CALVIN KLEIN", "CAROLINA HERRERA", "JEAN PAUL GAULTIER", 
+# Target Designer Keywords
+DESIGNER_KEYWORDS = [
+    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "JADORE", "MISS DIOR", "DIOR",
+    "BLEU DE CHANEL", "COCO", "ALLURE", "CHANCE", "CHANEL",
+    "EROS", "DYLAN BLUE", "BRIGHT CRYSTAL", "VERSACE",
+    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "ARMANI",
+    "BLACK OPIUM", "LIBRE", "YSL", "OPIUM",
+    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", "RABANNE",
+    "LIGHT BLUE", "THE ONE", "DOLCE", "GABBANA",
+    "BOSS BOTTLED", "HUGO", "BOSS",
+    "GUCCI", "BLOOM", "GUILTY",
+    "PRADA", "LUNA ROSSA", "PARADOXE",
+    "BURBERRY", "HERO",
+    "CK ONE", "ETERNITY", "EUPHORIA", "CALVIN KLEIN",
+    "GOOD GIRL", "BAD BOY", "CAROLINA HERRERA",
+    "GAULTIER", "LE MALE", "SCANDAL",
     "TOM FORD", "HERMES", "BVLGARI"
 ]
 
@@ -100,87 +91,90 @@ def fetch_beautyfort_catalog():
         'Accept': 'text/xml'
     }
 
-    print("Sending SOAP request to Beauty Fort...")
     response = requests.post(API_ENDPOINT, data=soap_envelope, headers=headers, timeout=60)
-    print(f"Response Status Code: {response.status_code}")
-
     if response.status_code != 200:
         raise Exception(f"API request failed with status {response.status_code}: {response.text}")
 
     return response.text
 
 raw_xml = fetch_beautyfort_catalog()
-print("Successfully received SOAP XML catalog payload. Filtering for designer bestsellers...")
+print("Successfully received SOAP XML catalog payload.")
 
 matched_items = []
 fallback_items = []
 
 try:
     root = ET.fromstring(raw_xml)
-    item_count = 0
-    
+    total_parsed = 0
+
+    # Scan through XML elements
     for elem in root.iter():
-        tag_name = elem.tag.split('}')[-1]
-        if 'item' in tag_name.lower() or 'stockfileitem' in tag_name.lower():
-            sku, name, stock_str, price_str, ean = '', '', '0', '', ''
-            
-            for child in elem:
-                t = child.tag.split('}')[-1].lower()
-                if t in ['stockcode', 'sku']:
-                    sku = child.text or ''
-                elif t in ['fullname', 'name', 'description']:
-                    if child.text and len(child.text.strip()) > len(name):
-                        name = child.text.strip()
-                elif t in ['quantity', 'stock', 'stocklevel']:
-                    stock_str = child.text or '0'
-                elif t in ['price', 'lastpurchasedprice']:
-                    price_str = child.text or ''
-                elif t in ['barcode', 'ean']:
-                    ean = child.text or ''
+        sku, name, stock_str, price_str, ean = '', '', '0', '', ''
+        
+        for child in elem:
+            t = child.tag.split('}')[-1].lower()
+            if t in ['stockcode', 'sku', 'code']:
+                sku = child.text or ''
+            elif t in ['fullname', 'name', 'description', 'title']:
+                if child.text and len(child.text.strip()) > len(name):
+                    name = child.text.strip()
+            elif t in ['quantity', 'stock', 'stocklevel', 'qty']:
+                stock_str = child.text or '0'
+            elif t in ['price', 'lastpurchasedprice', 'cost']:
+                price_str = child.text or ''
+            elif t in ['barcode', 'ean', 'upc']:
+                ean = child.text or ''
 
-            if not name:
-                continue
-                
-            item_count += 1
-            try:
-                stock = float(stock_str)
-            except ValueError:
-                stock = 0
+        if not sku or not name:
+            continue
 
-            if stock < MIN_STOCK:
-                continue
+        total_parsed += 1
 
-            product_dict = {
-                'sku': sku,
-                'name': clean_title(name.upper()),
-                'stock': int(stock),
-                'price': clean_price(price_str),
-                'ean': ean
-            }
-            
-            upper_name = product_dict['name']
-            
-            # 1. Match against exact TOP_MODELS first
-            if any(model in upper_name for model in TOP_MODELS):
-                matched_items.append(product_dict)
-            # 2. Otherwise, match against FALLBACK_BRANDS
-            elif any(brand in upper_name for brand in FALLBACK_BRANDS):
-                fallback_items.append(product_dict)
-            
-    print(f"Scanned {item_count} items. Matched {len(matched_items)} primary bestsellers and {len(fallback_items)} secondary designer items.")
+        try:
+            stock = float(stock_str)
+        except ValueError:
+            stock = 0.0
+
+        if stock < MIN_STOCK:
+            continue
+
+        product_dict = {
+            'sku': sku,
+            'name': clean_title(name.upper()),
+            'stock': int(stock),
+            'price': clean_price(price_str),
+            'ean': ean
+        }
+
+        upper_name = product_dict['name']
+        if any(kw in upper_name for kw in DESIGNER_KEYWORDS):
+            matched_items.append(product_dict)
+        else:
+            fallback_items.append(product_dict)
+
+    print(f"Total parsed items with valid SKU/Name: {total_parsed}")
+    print(f"Matched {len(matched_items)} designer items, {len(fallback_items)} fallback items.")
 
 except Exception as e:
     print(f"Error parsing XML catalog: {e}")
 
-# Combine primary matches first, then fill up to 150 using secondary designer items
+# Combine matched first, then fallback to reach 150 items
 final_selected = (matched_items + fallback_items)[:EXACT_TARGET_COUNT]
 
-print(f"Exporting total {len(final_selected)} items to beautyfort_filtered.csv...")
+# Deduplicate by SKU
+seen_skus = set()
+unique_final = []
+for item in final_selected:
+    if item['sku'] not in seen_skus:
+        seen_skus.add(item['sku'])
+        unique_final.append(item)
+
+print(f"Writing {len(unique_final)} items to beautyfort_filtered.csv...")
 
 with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
     fieldnames = ['sku', 'name', 'stock', 'price', 'ean']
     writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter=';')
     writer.writeheader()
-    writer.writerows(final_selected)
+    writer.writerows(unique_final)
 
-print("beautyfort_filtered.csv successfully created!")
+print("beautyfort_filtered.csv updated successfully!")
