@@ -6,28 +6,36 @@ import re
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
-# Items you already fulfill yourself (strictly excluded)
+# 1. EXCLUSIONS: Strictly block items you fulfill yourself
 EXCLUDED_PHRASES = ["YARA", "ASAD", "CLUB DE NUIT"]
 
-# Priority Brand: All Afnan products will be pulled first
+# 2. PRIORITY BRAND: Grab 100% of Afnan products available
 PRIMARY_BRAND = "AFNAN"
 
-# Other preferred brands to fill remaining slots up to 150 total
+# 3. EXACT TOP-SELLING PERFUME NAMES (Brand + Flagship lines to guarantee)
+EXACT_BEST_SELLERS = [
+    # French Avenue / Fragrance World
+    "LIQUID BRUN", "VULCAN FEU", "ROYAL BLEND", "BARAKKAT ROUGE", 
+    # Lattafa Bestsellers (Excluding Yara & Asad)
+    "KHAMRAH", "KHAMRAH QAHWA", "ECLAIRE", "FAKHAR", "BADE'E AL OUD", 
+    "AMEER AL OUD", "ANA ABIYEDH", "NEBRAS", "HONOR & GLORY", "OUD FOR GLORY",
+    # Rasasi Bestsellers
+    "HAWAS", "HAWAS ICE", "DAAREJ", "AL WISAM",
+    # Al Haramain Bestsellers
+    "AMBER OUD", "L'AVENTURE", "DETOUR NOIR",
+    # Paris Corner / Emir Bestsellers
+    "EMIR", "CELESTIAL", "RICH SANTAL", "VALOR", "AUTO GRAPH",
+    # Maison Alhambra Bestsellers
+    "WOODY OUD", "TOBACCO TOUCH", "PORTO NEROLI", "JEAN LOWE",
+    # Other Niche Hits
+    "SHIYAAKA", "9PM", "9 PM", "SUPREMACY", "RARE CARBON", "TURATHI BLUE"
+]
+
+# 4. FALLBACK BRANDS (To fill any remaining slots up to 150)
 OTHER_TARGET_BRANDS = [
-    "RASASI",
-    "AL HARAMAIN",
-    "LATTAFA",  # Yara & Asad are excluded via EXCLUDED_PHRASES above
-    "PARIS CORNER",
-    "MAISON ALHAMBRA",
-    "ARMAF",    # Club de Nuit variants are excluded via EXCLUDED_PHRASES above
-    "SWISS ARABIAN",
-    "ARABIYAT",
-    "ARD AL ZAAFARAN",
-    "NABEEL",
-    "KHADLAJ",
-    "AYAT",
-    "FRAGRANCE WORLD",
-    "FRENCH AVENUE"
+    "LATTAFA", "RASASI", "AL HARAMAIN", "PARIS CORNER", 
+    "MAISON ALHAMBRA", "ARMAF", "SWISS ARABIAN", "ARABIYAT", 
+    "ARD AL ZAAFARAN", "NABEEL", "KHADLAJ", "FRAGRANCE WORLD", "FRENCH AVENUE"
 ]
 
 EXACT_TARGET_COUNT = 150  # Total exact limit for BTS
@@ -58,40 +66,41 @@ def get_stock_count(row):
     return 0.0
 
 def has_valid_image(row):
-    image_cols = ['image', 'image_url', 'picture', 'img', 'photo_url', 'image1']
+    """Strictly checks for valid non-empty image URLs."""
+    image_cols = ['image', 'image_url', 'picture', 'img', 'photo_url', 'image1', 'images']
     for col in image_cols:
-        if col in row and row[col] and str(row[col]).strip() != "":
-            return True
+        if col in row and row[col]:
+            val_str = str(row[col]).strip().lower()
+            if val_str and val_str not in ["", "none", "null", "no_image", "n/a", "http://", "https://"]:
+                return True
     return False
 
 def is_excluded(row):
-    """Check if the row contains any excluded phrases like Yara, Asad, or Club de Nuit"""
+    """Check for Yara, Asad, or Club de Nuit"""
     row_text = " ".join([str(v) for v in row.values() if v]).upper()
     for phrase in EXCLUDED_PHRASES:
         if re.search(r'\b' + re.escape(phrase) + r'\b', row_text):
             return True
     return False
 
-def get_brand_category(row):
-    """Classify row as 'afnan', 'other', or None"""
-    brand_cols = ['brand', 'manufacturer', 'vendor', 'marca', 'brand_name']
-    name_cols = ['name', 'title', 'product_name']
-    
-    # 1. Check Afnan first (Priority)
-    for col in brand_cols + name_cols:
-        if col in row and row[col]:
-            val_upper = str(row[col]).upper()
-            if re.search(r'\bAFNAN\b', val_upper):
-                return 'afnan'
-                
-    # 2. Check other target brands
-    for col in brand_cols + name_cols:
-        if col in row and row[col]:
-            val_upper = str(row[col]).upper()
-            for brand in OTHER_TARGET_BRANDS:
-                if re.search(r'\b' + re.escape(brand) + r'\b', val_upper):
-                    return 'other'
-                    
+def get_item_tier(row):
+    """Tier 1: Exact Name Flagships & Afnan | Tier 2: General Target Brands"""
+    row_text = " ".join([str(v) for v in row.values() if v]).upper()
+
+    # Priority 1: Check Afnan
+    if re.search(r'\bAFNAN\b', row_text):
+        return 'tier1'
+
+    # Priority 1: Check Exact Perfume Names
+    for name in EXACT_BEST_SELLERS:
+        if re.search(r'\b' + re.escape(name) + r'\b', row_text):
+            return 'tier1'
+
+    # Priority 2: Check Other Brands
+    for brand in OTHER_TARGET_BRANDS:
+        if re.search(r'\b' + re.escape(brand) + r'\b', row_text):
+            return 'tier2'
+
     return None
 
 def download_feed():
@@ -113,26 +122,26 @@ print(f"Downloaded catalog with {len(lines)} lines.")
 delim = ';' if ';' in lines[0] else ','
 reader = csv.DictReader(lines, delimiter=delim)
 
-afnan_candidates = []
-other_candidates = []
+tier1_candidates = []
+tier2_candidates = []
 
 for row in reader:
-    # 1. Stock check
+    # 1. Stock filter
     stock_qty = get_stock_count(row)
     if stock_qty < MIN_STOCK:
         continue
 
-    # 2. Image check
+    # 2. Image filter
     if not has_valid_image(row):
         continue
 
-    # 3. Skip excluded items (Yara, Asad, Club de Nuit)
+    # 3. Exclusion filter
     if is_excluded(row):
         continue
 
-    # 4. Check brand match
-    brand_type = get_brand_category(row)
-    if not brand_type:
+    # 4. Brand & Name Match Tier
+    tier = get_item_tier(row)
+    if not tier:
         continue
 
     if 'price' in row:
@@ -145,31 +154,30 @@ for row in reader:
             row[name_col] = clean_title(row[name_col])
 
     item = {'row': row, 'stock': stock_qty}
-    if brand_type == 'afnan':
-        afnan_candidates.append(item)
+    if tier == 'tier1':
+        tier1_candidates.append(item)
     else:
-        other_candidates.append(item)
+        tier2_candidates.append(item)
 
-# Sort candidates by highest stock available
-afnan_candidates.sort(key=lambda x: x['stock'], reverse=True)
-other_candidates.sort(key=lambda x: x['stock'], reverse=True)
+# Sort candidates by stock quantity
+tier1_candidates.sort(key=lambda x: x['stock'], reverse=True)
+tier2_candidates.sort(key=lambda x: x['stock'], reverse=True)
 
-# Build final selection: All Afnan first, then fill remainder from other brands up to 150
-final_selected_items = [c['row'] for c in afnan_candidates]
+# Combine: Put all Exact Bestsellers & Afnan first, then fill up to 150 total
+final_selected = [c['row'] for c in tier1_candidates]
 
-remaining_slots = EXACT_TARGET_COUNT - len(final_selected_items)
-if remaining_slots > 0:
-    final_selected_items.extend([c['row'] for c in other_candidates[:remaining_slots]])
+if len(final_selected) < EXACT_TARGET_COUNT:
+    needed = EXACT_TARGET_COUNT - len(final_selected)
+    final_selected.extend([c['row'] for c in tier2_candidates[:needed]])
 else:
-    # If Afnan alone exceeds 150, cap the list cleanly at 150
-    final_selected_items = final_selected_items[:EXACT_TARGET_COUNT]
+    final_selected = final_selected[:EXACT_TARGET_COUNT]
 
-print(f"Found {len(afnan_candidates)} Afnan items and {len(other_candidates)} other targeted brand items.")
-print(f"Outputting exactly {len(final_selected_items)} items into bts_filtered.csv.")
+print(f"Matched {len(tier1_candidates)} Tier 1 (Afnan + Named Flagships) and {len(tier2_candidates)} Tier 2 brand items.")
+print(f"Outputting exactly top {len(final_selected)} items into bts_filtered.csv.")
 
-if final_selected_items:
+if final_selected:
     with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
         writer = csv.DictWriter(outfile, fieldnames=reader.fieldnames, delimiter=delim)
         writer.writeheader()
-        writer.writerows(final_selected_items)
+        writer.writerows(final_selected)
     print("bts_filtered.csv successfully updated!")
