@@ -5,6 +5,7 @@ import requests
 import pandas as pd
 from zeep import Client
 from zeep.exceptions import Fault
+from lxml import etree
 
 # ============ SETTINGS ============
 EXACT_TARGET_COUNT = 150
@@ -60,14 +61,15 @@ def fetch_live_soap_catalog():
     try:
         client = Client(WSDL_URL)
         
-        # Inject authentication credentials into the SOAP Header
-        client.set_default_soap_headers({
-            'username': USERNAME,
-            'secret': SECRET_KEY
-        })
-        
-        print("Calling SOAP method: GetStockFile")
-        response = client.service.GetStockFile(SortBy="sku")
+        # Build standard SOAP authentication header using lxml
+        header_element = etree.Element('{http://www.beautyfort.com/api/}AuthHeader')
+        user_elem = etree.SubElement(header_element, '{http://www.beautyfort.com/api/}username')
+        user_elem.text = USERNAME
+        secret_elem = etree.SubElement(header_element, '{http://www.beautyfort.com/api/}secret')
+        secret_elem.text = SECRET_KEY
+
+        print("Calling SOAP method: GetStockFile with auth headers")
+        response = client.service.GetStockFile(SortBy="sku", _soapheaders=[header_element])
         
         # If GetStockFile returns a download URL for the spreadsheet
         if isinstance(response, str) and response.startswith('http'):
