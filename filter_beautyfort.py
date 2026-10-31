@@ -49,15 +49,12 @@ def fetch_beautyfort_soap_stock():
     print("Connecting to Beauty Fort SOAP client with WS-Security...")
     client = Client(WSDL_URL, wsse=UsernameToken(USERNAME, SECRET))
     
-    # Get the factory to construct complex types required by the WSDL schema
-    factory = client.type_factory('ns0')
-    
     print("Calling GetStockFile with full schema parameters...")
     response = client.service.GetStockFile(
         TestMode=False,
         StockFileFormat='CSV',
-        FieldDelimiter=;',
-        StockFileFields=None, # Pulls default standard fields (SKU, name, stock, price, ean)
+        FieldDelimiter=';',
+        StockFileFields=None,
         SortBy='SKU',
         StockFileEncoding='UTF-8'
     )
