@@ -114,17 +114,10 @@ print("Received SOAP response. Extracting products...")
 matched_items = []
 
 try:
-    # Strip namespaces for clean parsing
-    clean_xml = re.sub(r'\sxmlns="[^"]+"', '', raw_xml, count=0)
-    clean_xml = re.sub(r'xmlns:[a-zA-Z0-9]+="[^"]+"', '', clean_xml)
-    root = ET.fromstring(clean_xml)
+    # Parse raw XML directly without regex manipulation
+    root = ET.fromstring(raw_xml)
     
-    # Locate item nodes across potential XML container elements
-    items_elements = root.findall('.//StockFileItem') or root.findall('.//item') or root.findall('.//row')
-    if not items_elements:
-        items_elements = list(root.iter())
-
-    for elem in items_elements:
+    for elem in root.iter():
         sku, full_name, stock_str, price_str, ean, xml_brand = '', '', '', '', '', ''
         
         for child in elem:
@@ -159,7 +152,6 @@ try:
         brand = xml_brand.upper() if xml_brand else extract_brand(full_name)
         cleaned_name = clean_title(full_name.upper())
 
-        # Match against either explicit brand OR specific model terms
         is_brand_match = any(b in brand for b in TOP_BRANDS) or any(b in cleaned_name for b in TOP_BRANDS)
         is_model_match = any(m in cleaned_name for m in TOP_MODELS)
 
