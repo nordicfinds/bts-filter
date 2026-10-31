@@ -63,11 +63,11 @@ def build_beautyfort_headers():
     }
 
 def fetch_beautyfort_catalog():
-    # Beauty Fort GetStockFile / product catalog endpoints
+    # Official endpoint format from Beauty Fort API v5 docs
     endpoints = [
-        "https://www.beautyfort.com/api/getstockfile",
-        "https://api.beautyfort.com/v1/getstockfile",
-        "https://api.beautyfort.com/v5/products",
+        "https://api.beautyfort.com/getstockfile",
+        "https://api.beautyfort.com/GetStockFile",
+        "https://api.beautyfort.com/v5/getstockfile",
         "https://api.beautyfort.com/products"
     ]
     
