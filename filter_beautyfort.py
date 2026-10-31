@@ -1,36 +1,28 @@
 import csv
 import urllib.request
 import urllib.error
-import base64
-import json
+import hashlib
 import time
+import json
 import re
 
-# Beauty Fort Credentials
 USERNAME = "Base.com"
 SECRET = "JfPciKxq"
-API_URL = "https://api.beautyfort.com/v1/products" 
 
-# 1. PRIORITY 1: Specific Best-Selling Models in the Nordic Market
+# Priority 1: Top-selling model names for Nordic market
 TOP_MODELS = [
-    # Hugo Boss Bestsellers
     "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME", "HUGO DEEP RED", "BOSS ORANGE",
-    
-    # Other Major Nordic Bestsellers
-    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR",           # Dior
-    "BLACK OPIUM", "LIBRE", "YSL Y", "OPIUM",                 # YSL
-    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI",     # Armani
-    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", # Paco Rabanne
-    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE",           # Chanel
-    "MONTBLANC EXPLORER", "MONTBLANC LEGEND",                 # Montblanc
-    "EROS", "DYLAN BLUE",                                     # Versace
-    "LIGHT BLUE", "K BY DOLCE",                               # D&G
-    "HERO", "BURBERRY HER",                                   # Burberry
-    "CK ONE", "ETERNITY", "EUPHORIA",                         # Calvin Klein
-    "LE MALE", "DIVINE", "SCANDAL"                            # JPG
+    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR",
+    "BLACK OPIUM", "LIBRE", "YSL Y", "OPIUM",
+    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI",
+    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA",
+    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE",
+    "MONTBLANC EXPLORER", "MONTBLANC LEGEND",
+    "EROS", "DYLAN BLUE", "LIGHT BLUE", "K BY DOLCE",
+    "HERO", "BURBERRY HER", "CK ONE", "ETERNITY", "EUPHORIA", "LE MALE", "DIVINE", "SCANDAL"
 ]
 
-# 2. PRIORITY 2: General High-Demand Brands (Fallback to hit 150 target)
+# Priority 2: General brand fallbacks
 TARGET_BRANDS = [
     "HUGO BOSS", "BOSS", "DIOR", "CHANEL", "ARMANI", "GIORGIO ARMANI", 
     "YVES SAINT LAURENT", "YSL", "PACO RABANNE", "RABANNE", 
@@ -55,30 +47,49 @@ def clean_title(title_str):
         cleaned = re.sub(term, '', cleaned, flags=re.IGNORECASE)
     return re.sub(r'\s+', ' ', cleaned).strip()
 
-def fetch_beautyfort_data():
-    auth_str = f"{USERNAME}:{SECRET}"
-    b64_auth = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
-    headers = {
-        'Authorization': f'Basic {b64_auth}',
+def build_beautyfort_headers():
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+    token = f"token_{int(time.time())}"
+    raw_sig = f"{token}{timestamp}{SECRET}"
+    password_hash = hashlib.sha256(raw_sig.encode('utf-8')).hexdigest()
+
+    return {
+        'X-Username': USERNAME,
+        'X-Token': token,
+        'X-Created': timestamp,
+        'X-Password': password_hash,
         'User-Agent': 'Mozilla/5.0',
         'Accept': 'application/json'
     }
-    req = urllib.request.Request(API_URL, headers=headers)
-    for attempt in range(3):
+
+def fetch_beautyfort_catalog():
+    # Endpoints to test in order
+    endpoints = [
+        "https://api.beautyfort.com/v5/products",
+        "https://api.beautyfort.com/products",
+        "https://api.beautyfort.com/v1/catalog"
+    ]
+    
+    headers = build_beautyfort_headers()
+    
+    for url in endpoints:
         try:
-            print(f"Fetching Beauty Fort catalog (Attempt {attempt+1})...")
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            print(f"Testing Beauty Fort endpoint: {url}")
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 content = resp.read().decode('utf-8', errors='ignore')
                 try:
                     return json.loads(content)
                 except json.JSONDecodeError:
                     return content
+        except urllib.error.HTTPError as e:
+            print(f"Endpoint {url} returned HTTP {e.code}")
         except Exception as e:
-            print(f"Fetch warning: {e}")
-            time.sleep(5)
-    raise Exception("Failed to fetch Beauty Fort catalog.")
+            print(f"Endpoint {url} error: {e}")
+            
+    raise Exception("Could not reach any valid Beauty Fort API endpoint.")
 
-raw_data = fetch_beautyfort_data()
+raw_data = fetch_beautyfort_catalog()
 
 top_sellers = []
 brand_fallbacks = []
@@ -86,11 +97,11 @@ brand_fallbacks = []
 if isinstance(raw_data, (dict, list)):
     items = raw_data.get('products', raw_data) if isinstance(raw_data, dict) else raw_data
     for item in items:
-        stock = float(item.get('stock', item.get('quantity', 0)))
+        stock = float(item.get('stock', item.get('quantity', item.get('qty', 0))))
         if stock < MIN_STOCK:
             continue
 
-        name = str(item.get('name', item.get('title', ''))).upper()
+        name = str(item.get('name', item.get('title', item.get('description', '')))).upper()
         product_dict = {
             'sku': str(item.get('sku', item.get('id', ''))),
             'name': clean_title(name),
@@ -99,22 +110,18 @@ if isinstance(raw_data, (dict, list)):
             'ean': str(item.get('ean', item.get('barcode', '')))
         }
 
-        # Check Priority 1: Top-selling model names
         if any(model in name for model in TOP_MODELS):
             top_sellers.append(product_dict)
-        # Check Priority 2: General luxury brand fallback
         elif any(brand in name for brand in TARGET_BRANDS):
             brand_fallbacks.append(product_dict)
 
-# Sort both groups by stock level
 top_sellers.sort(key=lambda x: x['stock'], reverse=True)
 brand_fallbacks.sort(key=lambda x: x['stock'], reverse=True)
 
-# Merge: Top specific sellers get picked first, brand fallbacks second
 final_selected = (top_sellers + brand_fallbacks)[:EXACT_TARGET_COUNT]
 
-print(f"Picked {len(top_sellers)} top-selling Nordic model matches.")
-print(f"Total outputting {len(final_selected)} products to CSV.")
+print(f"Matched {len(top_sellers)} top models and {len(brand_fallbacks)} brand fallbacks.")
+print(f"Exporting top {len(final_selected)} items to beautyfort_filtered.csv...")
 
 if final_selected:
     with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
