@@ -1,11 +1,16 @@
 import csv
 import re
-from zeep import Client
-from zeep.wsse.username import UsernameToken
+import base64
+import hashlib
+import time
+import uuid
+import requests
+import xml.etree.ElementTree as ET
 
-USERNAME = "Base.com"
-SECRET = "JfPciKxq"
-WSDL_URL = "https://www.beautyfort.com/api/wsdl/v4/wsdl.wsdl"
+API_ENDPOINT = "https://www.beautyfort.com/api/soap"
+API_USERNAME = "Base.com"
+API_SECRET = "JfPciKxq"
+TEST_MODE = "false"  # Set to "true" if using a test account
 
 # Priority 1: Top-selling model names for Nordic market
 TOP_MODELS = [
@@ -45,51 +50,117 @@ def clean_title(title_str):
         cleaned = re.sub(term, '', cleaned, flags=re.IGNORECASE)
     return re.sub(r'\s+', ' ', cleaned).strip()
 
-def fetch_beautyfort_soap_stock():
-    print("Connecting to Beauty Fort SOAP client with WS-Security...")
-    client = Client(WSDL_URL, wsse=UsernameToken(USERNAME, SECRET))
+def fetch_beautyfort_catalog():
+    print("Generating Beauty Fort WS-Security Authentication headers...")
     
-    print("Calling GetStockFile with full schema parameters...")
-    response = client.service.GetStockFile(
-        TestMode=False,
-        StockFileFormat='CSV',
-        FieldDelimiter=';',
-        StockFileFields=None,
-        SortBy='SKU',
-        StockFileEncoding='UTF-8'
-    )
-    return response
+    # Nonce and Created timestamp matching their PHP specification
+    nonce = uuid.uuid4().hex[:16]
+    created = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+    
+    # Password: sha1 hash of nonce + created + secret, then base64 encoded
+    combined = f"{nonce}{created}{API_SECRET}"
+    sha1_hash = hashlib.sha1(combined.encode('utf-8')).digest()
+    password = base64.b64encode(sha1_hash).decode('utf-8')
 
-raw_data = fetch_beautyfort_soap_stock()
+    soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:bf="http://www.beautyfort.com/api/">
+	<soap:Header>
+		<bf:AuthHeader>
+			<bf:Username>{API_USERNAME}</bf:Username>
+			<bf:Nonce>{nonce}</bf:Nonce>
+			<bf:Created>{created}</bf:Created>
+			<bf:Password>{password}</bf:Password>
+		</bf:AuthHeader>
+    </soap:Header>
+    <soap:Body>
+		<bf:GetStockFileRequest>
+			<bf:TestMode>{TEST_MODE}</bf:TestMode>
+			<bf:StockFileFormat>XML</bf:StockFileFormat>
+			<bf:StockFileFields>
+				<bf:StockFileField>StockCode</bf:StockFileField>
+				<bf:StockFileField>FullName</bf:StockFileField>
+				<bf:StockFileField>Brand</bf:StockFileField>
+				<bf:StockFileField>Collection</bf:StockFileField>
+				<bf:StockFileField>Quantity</bf:StockFileField>
+				<bf:StockFileField>Price</bf:StockFileField>
+				<bf:StockFileField>Barcode</bf:StockFileField>
+			</bf:StockFileFields>
+			<bf:SortBy>FullName</bf:SortBy>
+			<bf:StockFileEncoding>UTF-8</bf:StockFileEncoding>
+		</bf:GetStockFileRequest>
+    </soap:Body>
+</soap:Envelope>"""
+
+    headers = {
+        'Content-Type': 'text/xml; charset=UTF-8',
+        'Accept': 'text/xml'
+    }
+
+    print("Sending SOAP request to Beauty Fort...")
+    response = requests.post(API_ENDPOINT, data=soap_envelope, headers=headers, timeout=60)
+    print(f"Response Status Code: {response.status_code}")
+
+    if response.status_code != 200:
+        raise Exception(f"API request failed with status {response.status_code}: {response.text}")
+
+    return response.text
+
+raw_xml = fetch_beautyfort_catalog()
+print("Successfully received SOAP XML catalog payload.")
 
 top_sellers = []
 brand_fallbacks = []
 
-if raw_data:
-    items = raw_data if isinstance(raw_data, list) else getattr(raw_data, 'item', [])
+try:
+    # Strip namespaces or handle XML parsing flexibly
+    root = ET.fromstring(raw_xml)
     
-    for item in items:
-        sku = str(getattr(item, 'sku', item.get('sku', '')))
-        name = str(getattr(item, 'name', item.get('name', ''))).upper()
-        stock = float(getattr(item, 'stock', item.get('stock', 0)))
-        price = clean_price(getattr(item, 'price', item.get('price', '')))
-        ean = str(getattr(item, 'ean', item.get('ean', '')))
+    # Iterate through XML nodes to find product items
+    for elem in root.iter():
+        if elem.tag.endswith('StockFileItem') or elem.tag.endswith('item') or elem.tag.endswith('Product'):
+            # Extract fields using local-name matching to avoid namespace prefix issues
+            sku = ''
+            name = ''
+            stock_str = '0'
+            price_str = ''
+            ean = ''
+            
+            for child in elem:
+                tag_lower = child.tag.split('}')[-1].lower()
+                if tag_lower in ['stockcode', 'sku']:
+                    sku = child.text or ''
+                elif tag_lower in ['fullname', 'name', 'description']:
+                    name = (child.text or '').upper()
+                elif tag_lower in ['quantity', 'stock', 'stocklevel']:
+                    stock_str = child.text or '0'
+                elif tag_lower in ['price', 'lastpurchasedprice']:
+                    price_str = child.text or ''
+                elif tag_lower in ['barcode', 'ean']:
+                    ean = child.text or ''
 
-        if stock < MIN_STOCK:
-            continue
+            try:
+                stock = float(stock_str)
+            except ValueError:
+                stock = 0
 
-        product_dict = {
-            'sku': sku,
-            'name': clean_title(name),
-            'stock': int(stock),
-            'price': price,
-            'ean': ean
-        }
+            if stock < MIN_STOCK or not name:
+                continue
 
-        if any(model in name for model in TOP_MODELS):
-            top_sellers.append(product_dict)
-        elif any(brand in name for brand in TARGET_BRANDS):
-            brand_fallbacks.append(product_dict)
+            product_dict = {
+                'sku': sku,
+                'name': clean_title(name),
+                'stock': int(stock),
+                'price': clean_price(price_str),
+                'ean': ean
+            }
+
+            if any(model in name for model in TOP_MODELS):
+                top_sellers.append(product_dict)
+            elif any(brand in name for brand in TARGET_BRANDS):
+                brand_fallbacks.append(product_dict)
+                
+except Exception as e:
+    print(f"Error parsing XML catalog: {e}")
 
 top_sellers.sort(key=lambda x: x['stock'], reverse=True)
 brand_fallbacks.sort(key=lambda x: x['stock'], reverse=True)
@@ -106,3 +177,5 @@ if final_selected:
         writer.writeheader()
         writer.writerows(final_selected)
     print("beautyfort_filtered.csv successfully created!")
+else:
+    print("Warning: No products matched criteria or catalog was empty.")
