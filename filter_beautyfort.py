@@ -1,6 +1,7 @@
 import csv
 import re
 from zeep import Client
+from zeep.wsse.username import UsernameToken
 
 USERNAME = "Base.com"
 SECRET = "JfPciKxq"
@@ -16,7 +17,7 @@ TOP_MODELS = [
     "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE",
     "MONTBLANC EXPLORER", "MONTBLANC LEGEND",
     "EROS", "DYLAN BLUE", "LIGHT BLUE", "K BY DOLCE",
-    "HERO", "BURBERRY HER", "CK ONE", "ETERNITY", "EUPHORIA", "LE MALE", "DIVINE", "SCANDAL"
+    "HERO", "BURBERRY HER", "CK ONE", "ETERNITY", "EUPHORIA", "LÉ MALE", "DIVINE", "SCANDAL"
 ]
 
 # Priority 2: General brand fallbacks
@@ -45,13 +46,17 @@ def clean_title(title_str):
     return re.sub(r'\s+', ' ', cleaned).strip()
 
 def fetch_beautyfort_soap_stock():
-    print("Connecting to Beauty Fort SOAP client...")
-    client = Client(WSDL_URL)
+    print("Connecting to Beauty Fort SOAP client with WS-Security...")
+    # Attach UsernameToken for authentication headers
+    client = Client(WSDL_URL, wsse=UsernameToken(USERNAME, SECRET))
     
-    print("Calling GetStockFile via SOAP...")
+    print("Calling GetStockFile with correct schema parameters...")
+    # Passing standard arguments matching the requested signature
     response = client.service.GetStockFile(
-        username=USERNAME,
-        secret=SECRET
+        TestMode=False,
+        StockFileFormat='CSV',
+        FieldDelimiter=';',
+        StockFileEncoding='UTF-8'
     )
     return response
 
