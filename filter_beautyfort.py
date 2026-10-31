@@ -12,40 +12,32 @@ API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
 
-# Curated list of high-demand Designer Bestsellers only (No random items)
+# Preferred Bestseller Models
 TOP_MODELS = [
-    # Dior
     "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR", "DIOR HOMME",
-    # Chanel
     "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE HOMME", "CHANCE", "N°5",
-    # Versace
     "EROS", "DYLAN BLUE", "BRIGHT CRYSTAL", "EROS FLAME",
-    # Armani / Giorgio Armani
     "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI PASSIONE", "ARMANI CODE",
-    # YSL (Yves Saint Laurent)
     "BLACK OPIUM", "LIBRE", "YSL Y", "Y HOMME", "MON PARIS",
-    # Paco Rabanne
     "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", "LADY MILLION",
-    # Dolce & Gabbana
     "LIGHT BLUE", "THE ONE", "K BY DOLCE", "DEVOTION",
-    # Hugo Boss
     "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME",
-    # Gucci
     "GUCCI BLOOM", "GUCCI GUILTY", "FLORA GORGEOUS", "MEMOIRE",
-    # Prada
     "PRADA LUNA ROSSA", "PARADOXE", "PRADA CANDY",
-    # Burberry
     "BURBERRY HER", "BURBERRY GODDESS", "MR BURBERRY", "LONDON FOR MEN",
-    # Calvin Klein
     "CK ONE", "ETERNITY", "EUPHORIA", "CK BE",
-    # Carolina Herrera
     "GOOD GIRL", "BAD BOY", "212 VIP",
-    # Jean Paul Gaultier
     "LE MALE", "SCANDAL", "ULTRA MALE", "DIVINE",
-    # Tom Ford
     "BLACK ORCHID", "OMBRÉ LEATHER", "NEROLI PORTOFINO", "TOBACCO VANILLE",
-    # Hermès & Bvlgari
     "TERRE D'HERMES", "H24", "BVLGARI MAN", "OMNIA"
+]
+
+# Designer Brands for fallback filling (prevents empty file outputs)
+FALLBACK_BRANDS = [
+    "DIOR", "CHANEL", "VERSACE", "ARMANI", "YVES SAINT LAURENT", "YSL", 
+    "PACO RABANNE", "DOLCE & GABBANA", "HUGO BOSS", "GUCCI", "PRADA", 
+    "BURBERRY", "CALVIN KLEIN", "CAROLINA HERRERA", "JEAN PAUL GAULTIER", 
+    "TOM FORD", "HERMES", "BVLGARI"
 ]
 
 EXACT_TARGET_COUNT = 150
@@ -118,9 +110,10 @@ def fetch_beautyfort_catalog():
     return response.text
 
 raw_xml = fetch_beautyfort_catalog()
-print("Successfully received SOAP XML catalog payload. Filtering for top designer bestsellers...")
+print("Successfully received SOAP XML catalog payload. Filtering for designer bestsellers...")
 
 matched_items = []
+fallback_items = []
 
 try:
     root = ET.fromstring(raw_xml)
@@ -165,20 +158,24 @@ try:
                 'ean': ean
             }
             
-            # Check if it matches specifically your curated bestseller models
             upper_name = product_dict['name']
+            
+            # 1. Match against exact TOP_MODELS first
             if any(model in upper_name for model in TOP_MODELS):
                 matched_items.append(product_dict)
+            # 2. Otherwise, match against FALLBACK_BRANDS
+            elif any(brand in upper_name for brand in FALLBACK_BRANDS):
+                fallback_items.append(product_dict)
             
-    print(f"Scanned {item_count} items. Matched {len(matched_items)} specific designer bestsellers.")
+    print(f"Scanned {item_count} items. Matched {len(matched_items)} primary bestsellers and {len(fallback_items)} secondary designer items.")
 
 except Exception as e:
     print(f"Error parsing XML catalog: {e}")
 
-# Limit strictly to your target count (e.g., top 150)
-final_selected = matched_items[:EXACT_TARGET_COUNT]
+# Combine primary matches first, then fill up to 150 using secondary designer items
+final_selected = (matched_items + fallback_items)[:EXACT_TARGET_COUNT]
 
-print(f"Exporting top {len(final_selected)} items to beautyfort_filtered.csv...")
+print(f"Exporting total {len(final_selected)} items to beautyfort_filtered.csv...")
 
 with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
     fieldnames = ['sku', 'name', 'stock', 'price', 'ean']
