@@ -3,79 +3,58 @@ import urllib.request
 import urllib.error
 import time
 import re
+from collections import defaultdict
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
-# 1. Full-Catalog Brands (Always match all items up to cap)
-FULL_BRANDS = [
-    "AFNAN", "AMIKA", "ARABIYAT", "ARMAF", "FRAGRANCE WORLD", 
-    "FRENCH AVENUE", "LATTAFA", "MAISON ALHAMBRA", "PARIS CORNER", "RASASI"
+# Top High-Demand Brands for the Nordic Market
+TARGET_BRANDS = [
+    "LATTAFA", 
+    "ARMAF", 
+    "FRAGRANCE WORLD", 
+    "PARIS CORNER", 
+    "AFNAN", 
+    "RASASI", 
+    "FRENCH AVENUE", 
+    "SWISS ARABIAN", 
+    "ARABIYAT", 
+    "CAROLINA HERRERA", 
+    "CALVIN KLEIN", 
+    "ELIZABETH ARDEN", 
+    "JULIETTE HAS A GUN", 
+    "CLEAN", 
+    "THE ORDINARY", 
+    "VERSACE", 
+    "PACO RABANNE", 
+    "SOL DE JANEIRO"
 ]
 
-# 2. Targeted Brands (Max ~10 top-selling lines/keywords per brand)
-BRAND_KEYWORDS = {
-    "ABERCROMBIE": ["FIERCE", "FIRST INSTINCT", "AUTHENTIC", "AWAY", "NATURALLY FIERCE"],
-    "ARDELL": ["WHISPIES", "DEMI", "MAGNETIC", "DUO", "INDIVIDUAL", "LASH"],
-    "BENEFIT": ["BENETINT", "POREFESSIONAL", "BADGAL", "ROLLER LASH", "HOOLA", "GIMME BROW", "PRECISELY MY BROW", "THEY'RE REAL", "FLUFF UP"],
-    "BRITNEY SPEARS": ["FANTASY", "CURIOUS", "MIDNIGHT FANTASY", "PREROGATIVE", "IN CONTROL"],
-    "CAROLINA HERRERA": ["GOOD GIRL", "BAD BOY", "212", "VERY GOOD GIRL", "CH", "HERRERA CONFIDENTIAL"],
-    "CHANEL": ["NO 5", "NO.5", "COCO", "BLEU", "CHANCE", "ALLURE", "GABRIELLE", "EGOISTE", "MADEMOISELLE"],
-    "CLEAN": ["RESERVE", "WARM COTTON", "RAIN", "SKIN", "PURE SOAP", "APPLE BLOSSOM", "FRESH LAUNDRY"],
-    "DERMALOGICA": ["MICROFOLIANT", "SPECIAL CLEANSING", "PRECLEANSE", "DYNAMIC SKIN", "SMOOTHING CREAM", "BIOLUMIN-C", "CLEAR START"],
-    "DR. JART": ["CICAPAIR", "CERAMIDIN", "CRYO RUBBER", "EVERY SUN DAY"],
-    "ELIZABETH ARDEN": ["GREEN TEA", "RED DOOR", "5TH AVENUE", "FIFTH AVENUE", "WHITE TEA", "EIGHT HOUR", "RETINOL CERAMIDE"],
-    "ESCADA": ["TAJ SUNSET", "ISLAND KISS", "MAGNETISM", "SUMMER FESTIVAL", "SORBETTO ROSSO", "MIAMI BLOSSOM", "CELEBRATE N.O.W."],
-    "ESSENCE": ["LASH PRINCESS", "I LOVE EXTREME", "MAKE ME BROW", "JUICY BOMB", "SOFT & PRECISE", "FIT ME"],
-    "ESSIE": ["GEL COUTURE", "EXPRESSIE", "GOOD AS GO", "MADEMOISELLE", "BALLET SLIPPERS", "APRICOT CUTICLE"],
-    "ESTEE LAUDER": ["ADVANCED NIGHT", "DOUBLE WEAR", "YOUTH-DEW", "BEAUTIFUL", "PLEASURES", "BRONZE GODDESS", "REVITALIZING SUPREME"],
-    "GISADA": ["AMBASSADOR", "AMBASSADORA", "TITANIUM", "DONNA", "EXECUTIVE"],
-    "GLAM OF SWEDEN": ["LIP GLOSS", "MASCARA", "NAIL", "EYELINER", "CONCEALER", "FOUNDATION", "MASK"],
-    "GUCCI": ["BLOOM", "FLORA", "GUILTY", "BAMBOO", "RUSH", "MEMOIRE", "ALCHEMIST"],
-    "J.CAT": ["BEAUTY", "BLUSH", "LIPSTICK", "HIGHLIGHTER", "PALETTE"],
-    "JEAN-LOUIS SCHERRER": ["SCHERRER", "ONE LOVE", "POP DELIGHTS"],
-    "JULIETTE HAS A GUN": ["NOT A PERFUME", "PEAR INC", "SUPERDOSE", "LUST FOR SUN", "VANILLA VIBES", "MAGNOLIA BLISS"],
-    "K18": ["MOLECULAR", "REPAIR", "MASK", "PEPTIDE", "SHAMPOO"],
-    "LILY LOLO": ["MINERAL", "FOUNDATION", "BB CREAM", "SETTING POWDER"],
-    "MISSHA": ["PERFECT COVER", "TIME REVOLUTION", "M MAGIC", "SUPER AQUA"],
-    "MIZON": ["SNAIL REPAIR", "COLLAGEN", "HYALURONIC", "ALL IN ONE"],
-    "MONTBLANC": ["LEGEND", "EXPLORER", "INDIVIDUEL", "EMBLEM", "STARWALKER", "PRESENCE"],
-    "PACO RABANNE": ["1 MILLION", "ONE MILLION", "INVICTUS", "LADY MILLION", "PHANTOM", "OLYMPEA", "FAME", "PURE XS", "BLACK XS"],
-    "SALLY HANSEN": ["MIRACLE GEL", "HARD AS NAILS", "INSTA-DRI", "CUTICLE REHAB", "VITAMIN E"],
-    "SENSAI": ["CELLULAR", "BRONZING", "SILK", "TOTAL FINISH", "ABSOLUTE SILK"],
-    "SOL DE JANEIRO": ["CHEIROSA", "BUM BUM", "62", "68", "71", "40", "59", "BEIJA FLOR", "DELICIA DRENCH"],
-    "SWISS ARABIAN": ["SHAGHAF", "CASABLANCA", "GHARAAM", "LAYALI", "ALTARIKH"],
-    "THE ORDINARY": ["NIACINAMIDE", "HYALURONIC", "AHA", "CAFFEINE", "RETINOL", "PEPTIDE", "GLYCOLIC", "SQUALANE", "AZELAIC"],
-    "TOMMY HILFIGER": ["TOMMY GIRL", "TOMMY", "IMPACT", "NOW"],
-    "VERSACE": ["BRIGHT CRYSTAL", "EROS", "DYLAN", "CRYSTAL NOIR", "EAU FRAICHE", "YELLOW DIAMOND", "MAN EAU FRAICHE"]
-}
-
-MAX_MATCHES = 950
+EXACT_TARGET_COUNT = 100  # Exactly 100 items
+MIN_STOCK = 5             # Minimum stock requirement
 
 def clean_price(val):
     if not val:
         return ""
-    # Strips out '€', spaces, commas, and non-numeric formatting
-    cleaned = re.sub(r'[^0-9\.]', '', val.replace(',', '.'))
-    return cleaned
+    return re.sub(r'[^0-9\.]', '', val.replace(',', '.'))
 
 def clean_title(title_str):
     if not title_str:
         return ""
-    
-    # List of words/phrases to remove from titles (case-insensitive)
-    unwanted_terms = [
-        r'\bSpray\b', 
-        r'\bVaporisateur\b', 
-        r'\bVapo\b'
-    ]
-    
+    unwanted_terms = [r'\bSpray\b', r'\bVaporisateur\b', r'\bVapo\b']
     cleaned = title_str
     for term in unwanted_terms:
         cleaned = re.sub(term, '', cleaned, flags=re.IGNORECASE)
-    
-    # Remove extra whitespace created by removing words
-    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    return cleaned
+    return re.sub(r'\s+', ' ', cleaned).strip()
+
+def get_stock_count(row):
+    for col in ['stock', 'quantity', 'qty', 'stock_qty', 'units']:
+        if col in row and row[col]:
+            try:
+                clean_val = re.sub(r'[^0-9\.]', '', str(row[col]))
+                return float(clean_val) if clean_val else 0.0
+            except ValueError:
+                pass
+    return 0.0
 
 def download_feed():
     req = urllib.request.Request(FEED_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -96,44 +75,72 @@ print(f"Downloaded catalog with {len(lines)} lines.")
 delim = ';' if ';' in lines[0] else ','
 reader = csv.DictReader(lines, delimiter=delim)
 
-clean_rows = []
+# Group products by brand bucket
+brand_buckets = defaultdict(list)
 
 for row in reader:
+    stock_qty = get_stock_count(row)
+    if stock_qty < MIN_STOCK:
+        continue
+
     row_text = " ".join([str(v) for v in row.values() if v]).upper()
     
-    is_match = False
-    
-    if any(b in row_text for b in FULL_BRANDS):
-        is_match = True
-    else:
-        for brand, keywords in BRAND_KEYWORDS.items():
-            if brand in row_text:
-                if any(kw in row_text for kw in keywords):
-                    is_match = True
-                    break
+    matched_brand = None
+    for brand in TARGET_BRANDS:
+        if brand in row_text:
+            matched_brand = brand
+            break
 
-    if is_match:
-        # 1. Clean prices
+    if matched_brand:
         if 'price' in row:
             row['price'] = clean_price(row['price'])
         if 'recommended_price' in row:
             row['recommended_price'] = clean_price(row['recommended_price'])
             
-        # 2. Clean title column if present
         for name_col in ['name', 'title', 'product_name']:
             if name_col in row:
                 row[name_col] = clean_title(row[name_col])
-            
-        clean_rows.append(row)
-        if len(clean_rows) >= MAX_MATCHES:
-            print(f"Reached cap of {MAX_MATCHES} matched products.")
+                
+        brand_buckets[matched_brand].append({
+            'row': row,
+            'stock': stock_qty
+        })
+
+# Sort items within each brand by highest stock volume first
+for brand in brand_buckets:
+    brand_buckets[brand].sort(key=lambda x: x['stock'], reverse=True)
+
+# Round-robin selection to guarantee EXACTLY 100 items distributed across brands
+final_selected = []
+active_brands = [b for b in TARGET_BRANDS if b in brand_buckets]
+
+while len(final_selected) < EXACT_TARGET_COUNT and active_brands:
+    brands_to_remove = []
+    for brand in active_brands:
+        if len(final_selected) >= EXACT_TARGET_COUNT:
             break
+        
+        items = brand_buckets[brand]
+        if items:
+            # Pop the highest stock item for this brand
+            top_item = items.pop(0)
+            final_selected.append(top_item['row'])
+        else:
+            brands_to_remove.append(brand)
+            
+    # Clean up brands that ran out of eligible stock items
+    for b in brands_to_remove:
+        active_brands.remove(b)
+        
+    # Safety break if total catalog has fewer than 100 items meeting criteria
+    if not active_brands:
+        break
 
-print(f"TOTAL MATCHED PRODUCTS: {len(clean_rows)}")
+print(f"Final selected product count: {len(final_selected)}")
 
-if clean_rows:
+if final_selected:
     with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
         writer = csv.DictWriter(outfile, fieldnames=reader.fieldnames, delimiter=delim)
         writer.writeheader()
-        writer.writerows(clean_rows)
-    print("bts_filtered.csv updated successfully!")
+        writer.writerows(final_selected)
+    print("bts_filtered.csv successfully generated with exact count!")
