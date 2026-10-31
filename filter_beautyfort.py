@@ -4,7 +4,7 @@ import csv
 import requests
 import pandas as pd
 from zeep import Client
-from zeep.exceptions Fault
+from zeep.exceptions import Fault
 from lxml import etree
 
 # ============ SETTINGS ============
