@@ -1,17 +1,21 @@
-import requests
-import xml.etree.ElementTree as ET
-import pandas as pd
+import os
 import re
 import csv
-import os
+import pandas as pd
+from zeep import Client
+from zeep.exceptions import Fault
 
 # ============ SETTINGS ============
 EXACT_TARGET_COUNT = 150
 MIN_STOCK = 5
 OUTPUT_FILE = "beautyfort_filtered.csv"
 
-# Replace with your actual Beauty Fort API endpoint URL
-API_URL = "https://www.beautyfort.com/api/v5/soap" 
+# Beauty Fort SOAP WSDL Endpoint
+WSDL_URL = "https://www.beautyfort.com/api/wsdl.wsdl"
+
+# Direct API Credentials from your panel
+USERNAME = "Base.com"
+SECRET_KEY = "JfPciKxq"
 
 TOP_BRANDS = [
     "DIOR", "CHANEL", "VERSACE", "GIORGIO ARMANI", "ARMANI", "YVES SAINT LAURENT",
@@ -32,8 +36,7 @@ TOP_MODELS = [
     "GUCCI BLOOM", "GUCCI GUILTY", "FLORA",
     "LUNA ROSSA", "PARADOXE", "CANDY",
     "BURBERRY HER", "GODDESS", "MR BURBERRY", "LONDON",
-    "CK ONE", "ETERNITY", "EUPHORIA", "CK BE",
-    "GOOD GIRL", "BAD BOY", "212",
+    "CK ONE", "ETERNITY", "EUPHORIA", "CK BE", "GOOD GIRL", "BAD BOY", "212",
     "LE MALE", "SCANDAL", "ULTRA MALE", "DIVINE",
     "BLACK ORCHID", "OMBRÉ LEATHER", "OMBRE LEATHER", "NEROLI PORTOFINO", "TOBACCO VANILLE",
     "TERRE D'HERMES", "H24", "OMNIA"
@@ -54,27 +57,65 @@ def clean_title(title_str):
         cleaned = re.sub(term, "", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", cleaned).strip()
 
-def fetch_live_catalog():
-    print("Fetching live catalog from Beauty Fort API...")
-    # Add API payload / headers here if required by your account settings
+def fetch_live_soap_catalog():
+    print(f"Connecting to Beauty Fort SOAP API ({WSDL_URL})...")
     try:
-        response = requests.get(API_URL, timeout=30)
-        response.raise_for_status()
-        return response.content
+        client = Client(WSDL_URL)
+        # Calling Beauty Fort SOAP method with your credentials
+        response = client.service.getStockList(USERNAME, SECRET_KEY)
+        return response
+    except Fault as f:
+        print(f"SOAP Fault Error: {f}")
+        return None
     except Exception as e:
-        print(f"Direct API call failed: {e}")
-        # Fallback to local spreadsheet if API call fails or isn't configured
-        excel_files = [f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')]
-        if excel_files:
-            print(f"Falling back to local file: {excel_files[0]}")
-            return excel_files[0]
-        raise SystemExit("No live API data or local Excel file available.")
+        print(f"SOAP API Connection Error: {e}")
+        return None
 
-data_source = fetch_live_catalog()
 matched_items = []
+soap_data = fetch_live_soap_catalog()
 
-if isinstance(data_source, str) and data_source.endswith('.xlsx'):
-    df = pd.read_excel(data_source, header=0)
+if soap_data:
+    print("Successfully retrieved product list via SOAP API!")
+    for item in soap_data:
+        sku = str(getattr(item, 'sku', getattr(item, 'code', ''))).strip()
+        raw_name = str(getattr(item, 'name', getattr(item, 'description', ''))).strip()
+        stock_val = getattr(item, 'stock', getattr(item, 'quantity', 0))
+        price_val = getattr(item, 'price', 0)
+        ean = str(getattr(item, 'barcode', getattr(item, 'ean', ''))).strip()
+
+        try:
+            stock = float(stock_val)
+        except (ValueError, TypeError):
+            stock = 0.0
+
+        if stock < MIN_STOCK:
+            continue
+
+        name = clean_title(raw_name.upper())
+        brand = name.split()[0] if name else "UNKNOWN"
+        for b in TOP_BRANDS:
+            if name.startswith(b) or f" {b} " in name:
+                brand = b
+                break
+
+        searchable = f"{brand} {name}"
+        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
+            matched_items.append({
+                "sku": sku,
+                "brand": brand,
+                "name": name,
+                "stock": int(stock),
+                "price": str(price_val).replace(',', '.'),
+                "ean": ean
+            })
+else:
+    print("Falling back to local spreadsheet file...")
+    excel_files = [f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')]
+    if not excel_files:
+        raise SystemExit("No API data or local Excel file available.")
+
+    INPUT_EXCEL = excel_files[0]
+    df = pd.read_excel(INPUT_EXCEL, header=0)
     cols = df.columns
     barcode_col = next((c for c in cols if 'streckkod' in str(c).lower() or 'barcode' in str(c).lower()), cols[0])
     sku_col = next((c for c in cols if 'lagerkod' in str(c).lower() or 'sku' in str(c).lower()), cols[1])
@@ -115,41 +156,6 @@ if isinstance(data_source, str) and data_source.endswith('.xlsx'):
                 "stock": int(stock),
                 "price": str(price_val).replace(',', '.'),
                 "ean": ean if ean.lower() != 'nan' else ""
-            })
-else:
-    # Parse raw live XML response from API
-    root = ET.fromstring(data_source)
-    for item in root.findall('.//product'):
-        sku = item.findtext('sku', default='').strip()
-        raw_name = item.findtext('name', default='').strip()
-        stock_val = item.findtext('stock', default='0')
-        price_val = item.findtext('price', default='0')
-        ean = item.findtext('ean', default='').strip()
-
-        try:
-            stock = float(stock_val)
-        except ValueError:
-            stock = 0.0
-
-        if stock < MIN_STOCK:
-            continue
-
-        name = clean_title(raw_name.upper())
-        brand = name.split()[0] if name else "UNKNOWN"
-        for b in TOP_BRANDS:
-            if name.startswith(b) or f" {b} " in name:
-                brand = b
-                break
-
-        searchable = f"{brand} {name}"
-        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
-            matched_items.append({
-                "sku": sku,
-                "brand": brand,
-                "name": name,
-                "stock": int(stock),
-                "price": price_val,
-                "ean": ean
             })
 
 # Sort by highest stock first and trim to target count
