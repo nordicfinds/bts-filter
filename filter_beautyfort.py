@@ -10,10 +10,7 @@ EXACT_TARGET_COUNT = 150
 MIN_STOCK = 5
 OUTPUT_FILE = "beautyfort_filtered.csv"
 
-# Beauty Fort SOAP WSDL Endpoint
 WSDL_URL = "https://www.beautyfort.com/api/wsdl.wsdl"
-
-# Direct API Credentials from your panel
 USERNAME = "Base.com"
 SECRET_KEY = "JfPciKxq"
 
@@ -61,9 +58,24 @@ def fetch_live_soap_catalog():
     print(f"Connecting to Beauty Fort SOAP API ({WSDL_URL})...")
     try:
         client = Client(WSDL_URL)
-        # Calling Beauty Fort SOAP method with your credentials
-        response = client.service.getStockList(USERNAME, SECRET_KEY)
-        return response
+        
+        # Print available operations for debugging
+        for service in client.wsdl.services.values():
+            for port in service.ports.values():
+                operations = list(port.binding.operations.keys())
+                print(f"Available SOAP Operations in WSDL: {operations}")
+        
+        # Try calling the standard stock list method (we can update this once we see the logs)
+        if hasattr(client.service, 'getStockList'):
+            return client.service.getStockList(USERNAME, SECRET_KEY)
+        elif hasattr(client.service, 'getProducts'):
+            return client.service.getProducts(USERNAME, SECRET_KEY)
+        elif hasattr(client.service, 'getStock'):
+            return client.service.getStock(USERNAME, SECRET_KEY)
+        else:
+            print("Operation name not recognized automatically. Check printed operations above.")
+            return None
+            
     except Fault as f:
         print(f"SOAP Fault Error: {f}")
         return None
