@@ -1,16 +1,17 @@
+import requests
+import xml.etree.ElementTree as ET
 import pandas as pd
 import re
-import os
 import csv
+import os
 
 # ============ SETTINGS ============
 EXACT_TARGET_COUNT = 150
 MIN_STOCK = 5
 OUTPUT_FILE = "beautyfort_filtered.csv"
 
-# Automatically find any excel file starting with lagerfil or fallback to standard name
-excel_files = [f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')]
-INPUT_EXCEL = excel_files[0] if excel_files else "lagerfil_010726.xlsx"
+# Replace with your actual Beauty Fort API endpoint URL
+API_URL = "https://www.beautyfort.com/api/v5/soap" 
 
 TOP_BRANDS = [
     "DIOR", "CHANEL", "VERSACE", "GIORGIO ARMANI", "ARMANI", "YVES SAINT LAURENT",
@@ -53,13 +54,27 @@ def clean_title(title_str):
         cleaned = re.sub(term, "", cleaned, flags=re.IGNORECASE)
     return re.sub(r"\s+", " ", cleaned).strip()
 
-print(f"Reading Beauty Fort inventory from {INPUT_EXCEL}...")
-try:
-    # Based on the spreadsheet layout: 
-    # Col A: Streckkod, Col B: Lagerkod, Col C: Namn, Col D: Lagerantal, Col E: Pris
-    df = pd.read_excel(INPUT_EXCEL, header=0)
-    
-    # Map columns dynamically based on common Swedish headers or standard positional indices
+def fetch_live_catalog():
+    print("Fetching live catalog from Beauty Fort API...")
+    # Add API payload / headers here if required by your account settings
+    try:
+        response = requests.get(API_URL, timeout=30)
+        response.raise_for_status()
+        return response.content
+    except Exception as e:
+        print(f"Direct API call failed: {e}")
+        # Fallback to local spreadsheet if API call fails or isn't configured
+        excel_files = [f for f in os.listdir('.') if f.startswith('lagerfil') and f.endswith('.xlsx')]
+        if excel_files:
+            print(f"Falling back to local file: {excel_files[0]}")
+            return excel_files[0]
+        raise SystemExit("No live API data or local Excel file available.")
+
+data_source = fetch_live_catalog()
+matched_items = []
+
+if isinstance(data_source, str) and data_source.endswith('.xlsx'):
+    df = pd.read_excel(data_source, header=0)
     cols = df.columns
     barcode_col = next((c for c in cols if 'streckkod' in str(c).lower() or 'barcode' in str(c).lower()), cols[0])
     sku_col = next((c for c in cols if 'lagerkod' in str(c).lower() or 'sku' in str(c).lower()), cols[1])
@@ -67,56 +82,75 @@ try:
     stock_col = next((c for c in cols if 'lagerantal' in str(c).lower() or 'stock' in str(c).lower() or 'antal' in str(c).lower()), cols[3])
     price_col = next((c for c in cols if 'pris' in str(c).lower() or 'price' in str(c).lower()), cols[4])
 
-    print(f"Successfully loaded {len(df)} rows from spreadsheet.")
-except Exception as e:
-    print(f"Error reading Excel file: {e}")
-    raise SystemExit(1)
+    for _, row in df.iterrows():
+        sku = str(row.get(sku_col, '')).strip()
+        raw_name = str(row.get(name_col, '')).strip()
+        stock_val = row.get(stock_col, 0)
+        price_val = row.get(price_col, '')
+        ean = str(row.get(barcode_col, '')).strip()
 
-matched_items = []
-too_low_stock = 0
+        if not sku or sku.lower() == 'nan' or not raw_name:
+            continue
+        try:
+            stock = float(str(stock_val).replace(',', '.')) if pd.notna(stock_val) else 0.0
+        except ValueError:
+            stock = 0.0
 
-for _, row in df.iterrows():
-    sku = str(row.get(sku_col, '')).strip()
-    raw_name = str(row.get(name_col, '')).strip()
-    stock_val = row.get(stock_col, 0)
-    price_val = row.get(price_col, '')
-    ean = str(row.get(barcode_col, '')).strip()
+        if stock < MIN_STOCK:
+            continue
 
-    if not sku or sku.lower() == 'nan' or not raw_name:
-        continue
+        name = clean_title(raw_name.upper())
+        brand = name.split()[0] if name else "UNKNOWN"
+        for b in TOP_BRANDS:
+            if name.startswith(b) or f" {b} " in name:
+                brand = b
+                break
 
-    try:
-        stock = float(str(stock_val).replace(',', '.')) if pd.notna(stock_val) else 0.0
-    except ValueError:
-        stock = 0.0
+        searchable = f"{brand} {name}"
+        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
+            matched_items.append({
+                "sku": sku,
+                "brand": brand,
+                "name": name,
+                "stock": int(stock),
+                "price": str(price_val).replace(',', '.'),
+                "ean": ean if ean.lower() != 'nan' else ""
+            })
+else:
+    # Parse raw live XML response from API
+    root = ET.fromstring(data_source)
+    for item in root.findall('.//product'):
+        sku = item.findtext('sku', default='').strip()
+        raw_name = item.findtext('name', default='').strip()
+        stock_val = item.findtext('stock', default='0')
+        price_val = item.findtext('price', default='0')
+        ean = item.findtext('ean', default='').strip()
 
-    if stock < MIN_STOCK:
-        too_low_stock += 1
-        continue
+        try:
+            stock = float(stock_val)
+        except ValueError:
+            stock = 0.0
 
-    name = clean_title(raw_name.upper())
-    
-    # Extract brand from the beginning of the name or check text
-    brand = name.split()[0] if name else "UNKNOWN"
-    for b in TOP_BRANDS:
-        if name.startswith(b) or f" {b} " in name:
-            brand = b
-            break
+        if stock < MIN_STOCK:
+            continue
 
-    searchable = f"{brand} {name}"
+        name = clean_title(raw_name.upper())
+        brand = name.split()[0] if name else "UNKNOWN"
+        for b in TOP_BRANDS:
+            if name.startswith(b) or f" {b} " in name:
+                brand = b
+                break
 
-    if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
-        matched_items.append({
-            "sku": sku,
-            "brand": brand,
-            "name": name,
-            "stock": int(stock),
-            "price": str(price_val).replace(',', '.'),
-            "ean": ean if ean.lower() != 'nan' else ""
-        })
-
-print(f"Removed because stock < {MIN_STOCK}: {too_low_stock}")
-print(f"Designer items matched: {len(matched_items)}")
+        searchable = f"{brand} {name}"
+        if BRAND_RE.search(searchable) or MODEL_RE.search(searchable):
+            matched_items.append({
+                "sku": sku,
+                "brand": brand,
+                "name": name,
+                "stock": int(stock),
+                "price": price_val,
+                "ean": ean
+            })
 
 # Sort by highest stock first and trim to target count
 matched_items.sort(key=lambda x: x["stock"], reverse=True)
