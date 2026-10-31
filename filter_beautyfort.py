@@ -63,18 +63,19 @@ def build_beautyfort_headers():
     }
 
 def fetch_beautyfort_catalog():
-    # Endpoints to test in order
+    # Beauty Fort GetStockFile / product catalog endpoints
     endpoints = [
+        "https://www.beautyfort.com/api/getstockfile",
+        "https://api.beautyfort.com/v1/getstockfile",
         "https://api.beautyfort.com/v5/products",
-        "https://api.beautyfort.com/products",
-        "https://api.beautyfort.com/v1/catalog"
+        "https://api.beautyfort.com/products"
     ]
     
     headers = build_beautyfort_headers()
     
     for url in endpoints:
         try:
-            print(f"Testing Beauty Fort endpoint: {url}")
+            print(f"Trying Beauty Fort endpoint: {url}")
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=45) as resp:
                 content = resp.read().decode('utf-8', errors='ignore')
@@ -95,7 +96,7 @@ top_sellers = []
 brand_fallbacks = []
 
 if isinstance(raw_data, (dict, list)):
-    items = raw_data.get('products', raw_data) if isinstance(raw_data, dict) else raw_data
+    items = raw_data.get('products', raw_data.get('items', raw_data)) if isinstance(raw_data, dict) else raw_data
     for item in items:
         stock = float(item.get('stock', item.get('quantity', item.get('qty', 0))))
         if stock < MIN_STOCK:
