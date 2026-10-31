@@ -12,17 +12,40 @@ API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
 
-# Your exact Nordic bestseller model list
+# Curated list of high-demand Designer Bestsellers only (No random items)
 TOP_MODELS = [
-    "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME", "HUGO DEEP RED", "BOSS ORANGE",
-    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR",
-    "BLACK OPIUM", "LIBRE", "YSL Y", "OPIUM",
-    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI",
-    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA",
-    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE",
-    "MONTBLANC EXPLORER", "MONTBLANC LEGEND",
-    "EROS", "DYLAN BLUE", "LIGHT BLUE", "K BY DOLCE",
-    "HERO", "BURBERRY HER", "CK ONE", "ETERNITY", "EUPHORIA", "LÉ MALE", "DIVINE", "SCANDAL"
+    # Dior
+    "SAUVAGE", "FAHRENHEIT", "J'ADORE", "MISS DIOR", "DIOR HOMME",
+    # Chanel
+    "BLEU DE CHANEL", "COCO MADEMOISELLE", "ALLURE HOMME", "CHANCE", "N°5",
+    # Versace
+    "EROS", "DYLAN BLUE", "BRIGHT CRYSTAL", "EROS FLAME",
+    # Armani / Giorgio Armani
+    "ACQUA DI GIO", "STRONGER WITH YOU", "MY WAY", "SI PASSIONE", "ARMANI CODE",
+    # YSL (Yves Saint Laurent)
+    "BLACK OPIUM", "LIBRE", "YSL Y", "Y HOMME", "MON PARIS",
+    # Paco Rabanne
+    "1 MILLION", "ONE MILLION", "INVICTUS", "PHANTOM", "OLYMPEA", "LADY MILLION",
+    # Dolce & Gabbana
+    "LIGHT BLUE", "THE ONE", "K BY DOLCE", "DEVOTION",
+    # Hugo Boss
+    "BOSS BOTTLED", "THE SCENT", "HUGO MAN", "BOSS ALIVE", "BOSS FEMME",
+    # Gucci
+    "GUCCI BLOOM", "GUCCI GUILTY", "FLORA GORGEOUS", "MEMOIRE",
+    # Prada
+    "PRADA LUNA ROSSA", "PARADOXE", "PRADA CANDY",
+    # Burberry
+    "BURBERRY HER", "BURBERRY GODDESS", "MR BURBERRY", "LONDON FOR MEN",
+    # Calvin Klein
+    "CK ONE", "ETERNITY", "EUPHORIA", "CK BE",
+    # Carolina Herrera
+    "GOOD GIRL", "BAD BOY", "212 VIP",
+    # Jean Paul Gaultier
+    "LE MALE", "SCANDAL", "ULTRA MALE", "DIVINE",
+    # Tom Ford
+    "BLACK ORCHID", "OMBRÉ LEATHER", "NEROLI PORTOFINO", "TOBACCO VANILLE",
+    # Hermès & Bvlgari
+    "TERRE D'HERMES", "H24", "BVLGARI MAN", "OMNIA"
 ]
 
 EXACT_TARGET_COUNT = 150
@@ -95,10 +118,9 @@ def fetch_beautyfort_catalog():
     return response.text
 
 raw_xml = fetch_beautyfort_catalog()
-print("Successfully received SOAP XML catalog payload. Filtering for target models...")
+print("Successfully received SOAP XML catalog payload. Filtering for top designer bestsellers...")
 
 matched_items = []
-fallback_items = []
 
 try:
     root = ET.fromstring(raw_xml)
@@ -143,20 +165,18 @@ try:
                 'ean': ean
             }
             
-            # Check if it matches your specific TOP_MODELS list
+            # Check if it matches specifically your curated bestseller models
             upper_name = product_dict['name']
             if any(model in upper_name for model in TOP_MODELS):
                 matched_items.append(product_dict)
-            else:
-                fallback_items.append(product_dict)
             
-    print(f"Scanned {item_count} items. Matched {len(matched_items)} items from your TOP_MODELS list.")
+    print(f"Scanned {item_count} items. Matched {len(matched_items)} specific designer bestsellers.")
 
 except Exception as e:
     print(f"Error parsing XML catalog: {e}")
 
-# Prioritize exact top models first, then fill up to EXACT_TARGET_COUNT if needed
-final_selected = (matched_items + fallback_items)[:EXACT_TARGET_COUNT]
+# Limit strictly to your target count (e.g., top 150)
+final_selected = matched_items[:EXACT_TARGET_COUNT]
 
 print(f"Exporting top {len(final_selected)} items to beautyfort_filtered.csv...")
 
