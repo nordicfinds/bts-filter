@@ -4,10 +4,11 @@ import base64
 import hashlib
 import time
 import uuid
+from zeep import Client, Settings
+from zeep.transports import Transport
 import requests
-import xml.etree.ElementTree as ET
 
-API_ENDPOINT = "https://www.beautyfort.com/api/soap"
+WSDL_URL = "https://www.beautyfort.com/api/wsdl/wsdl.wsdl"
 API_USERNAME = "Base.com"
 API_SECRET = "JfPciKxq"
 TEST_MODE = "false"
@@ -63,87 +64,70 @@ def extract_brand(title_str):
     words = title_str.split()
     return " ".join(words[:2]).upper() if len(words) >= 2 else title_str.upper()
 
-def fetch_beautyfort_catalog():
-    print("Generating Beauty Fort WS-Security authentication headers...")
-    nonce = uuid.uuid4().hex[:16]
-    created = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
-    
-    raw_str = f"{nonce}{created}{API_SECRET}"
-    sha1_hex = hashlib.sha1(raw_str.encode('utf-8')).hexdigest()
-    password = base64.b64encode(sha1_hex.encode('utf-8')).decode('utf-8')
+print("Initializing Zeep SOAP client with official WSDL...")
+settings = Settings(strict=False, xml_strict=False)
+client = Client(WSDL_URL, settings=settings)
 
-    # Removed invalid 'ImageURL' from StockFileFields
-    soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:bf="http://www.beautyfort.com/api/">
-	<soap:Header>
-		<bf:AuthHeader>
-			<bf:Username>{API_USERNAME}</bf:Username>
-			<bf:Nonce>{nonce}</bf:Nonce>
-			<bf:Created>{created}</bf:Created>
-			<bf:Password>{password}</bf:Password>
-		</bf:AuthHeader>
-    </soap:Header>
-    <soap:Body>
-		<bf:GetStockFileRequest>
-			<bf:TestMode>{TEST_MODE}</bf:TestMode>
-			<bf:StockFileFormat>XML</bf:StockFileFormat>
-			<bf:StockFileFields>
-				<bf:StockFileField>StockCode</bf:StockFileField>
-				<bf:StockFileField>FullName</bf:StockFileField>
-				<bf:StockFileField>Brand</bf:StockFileField>
-				<bf:StockFileField>Collection</bf:StockFileField>
-				<bf:StockFileField>Quantity</bf:StockFileField>
-				<bf:StockFileField>Price</bf:StockFileField>
-				<bf:StockFileField>Barcode</bf:StockFileField>
-			</bf:StockFileFields>
-			<bf:SortBy>FullName</bf:SortBy>
-			<bf:StockFileEncoding>UTF-8</bf:StockFileEncoding>
-		</bf:GetStockFileRequest>
-    </soap:Body>
-</soap:Envelope>"""
+# Generate WS-Security authentication headers
+nonce = uuid.uuid4().hex[:16]
+created = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
+raw_str = f"{nonce}{created}{API_SECRET}"
+sha1_hex = hashlib.sha1(raw_str.encode('utf-8')).hexdigest()
+password = base64.b64encode(sha1_hex.encode('utf-8')).decode('utf-8')
 
-    headers = {'Content-Type': 'text/xml; charset=UTF-8', 'Accept': 'text/xml'}
-    response = requests.post(API_ENDPOINT, data=soap_envelope, headers=headers, timeout=60)
-    if response.status_code != 200:
-        raise Exception(f"API request failed: {response.status_code}")
-    return response.text
+auth_header = client.get_type('ns0:AuthHeader')(
+    Username=API_USERNAME,
+    Nonce=nonce,
+    Created=created,
+    Password=password
+)
 
-raw_xml = fetch_beautyfort_catalog()
-print("Received SOAP response. Parsing and applying strict bestseller filters...")
+print("Requesting stock file from Beauty Fort API...")
+try:
+    response = client.service.GetStockFile(
+        TestMode=TEST_MODE,
+        StockFileFormat="XML",
+        StockFileFields={
+            'StockFileField': [
+                'StockCode',
+                'FullName',
+                'Brand',
+                'Collection',
+                'Quantity',
+                'Price',
+                'Barcode'
+            ]
+        },
+        SortBy="FullName",
+        StockFileEncoding="UTF-8",
+        _soapheaders=[auth_header]
+    )
+except Exception as e:
+    print(f"SOAP API Call Failed: {e}")
+    response = None
 
 matched_items = []
 
-try:
-    root = ET.fromstring(raw_xml)
+if response:
+    print("SOAP response received successfully. Processing catalog...")
+    # Depending on how zeep parses the response, iterate through items safely
+    # (zeep usually returns a list or an object containing the items/rows)
+    items_list = response if isinstance(response, (list, tuple)) else getattr(response, 'StockFileItem', []) or getattr(response, 'item', []) or []
     
-    for elem in root.iter():
-        sku, full_name, stock_str, price_str, ean, xml_brand = '', '', '', '', '', ''
-        
-        for child in elem:
-            t = child.tag.split('}')[-1].lower()
-            val = child.text.strip() if child.text else ''
-            
-            if t in ['stockcode', 'sku', 'code']:
-                sku = val
-            elif t in ['fullname', 'name', 'description', 'title']:
-                if len(val) > len(full_name):
-                    full_name = val
-            elif t in ['brand']:
-                xml_brand = val
-            elif t in ['quantity', 'stock', 'stocklevel', 'qty']:
-                stock_str = val
-            elif t in ['price', 'lastpurchasedprice', 'cost']:
-                price_str = val
-            elif t in ['barcode', 'ean', 'upc']:
-                ean = val
+    for row in items_list:
+        sku = str(getattr(row, 'StockCode', '') or '').strip()
+        full_name = str(getattr(row, 'FullName', '') or '').strip()
+        xml_brand = str(getattr(row, 'Brand', '') or '').strip()
+        stock_val = getattr(row, 'Quantity', 0)
+        price_val = getattr(row, 'Price', '')
+        ean_val = str(getattr(row, 'Barcode', '') or '').strip()
 
-        # Skip error nodes or invalid rows
-        if not sku or not full_name or "Invalid field value" in full_name:
+        if not sku or not full_name:
             continue
 
         try:
-            stock = float(re.sub(r'[^0-9\.]', '', stock_str)) if stock_str else 0.0
-        except ValueError:
+            stock = float(stock_val) if stock_val is not None else 0.0
+        except (ValueError, TypeError):
             stock = 0.0
 
         if stock < MIN_STOCK:
@@ -158,13 +142,11 @@ try:
                 'brand': brand,
                 'name': cleaned_name,
                 'stock': int(stock),
-                'price': clean_price(price_str),
-                'ean': ean
+                'price': clean_price(price_val),
+                'ean': ean_val
             })
 
-except Exception as e:
-    print(f"Parser Error: {e}")
-
+# Deduplicate and limit to target count
 seen_skus = set()
 unique_items = []
 for item in matched_items:
@@ -174,7 +156,7 @@ for item in matched_items:
     if len(unique_items) >= EXACT_TARGET_COUNT:
         break
 
-print(f"Successfully matched {len(unique_items)} specific designer bestsellers with stock >= {MIN_STOCK}.")
+print(f"Successfully matched {len(unique_items)} designer bestsellers with stock >= {MIN_STOCK}.")
 
 with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
     fieldnames = ['sku', 'brand', 'name', 'stock', 'price', 'ean']
@@ -182,4 +164,4 @@ with open("beautyfort_filtered.csv", mode="w", newline="", encoding="utf-8") as 
     writer.writeheader()
     writer.writerows(unique_items)
 
-print("beautyfort_filtered.csv updated successfully!")
+print("beautyfort_filtered.csv successfully updated!")
