@@ -145,7 +145,7 @@ def process_row(sku, raw_name, stock_val, price_val, ean):
             "stock": int(stock),
             "price": str(price_val).replace(',', '.'),
             "ean": ean if str(ean).lower() != 'nan' else "",
-            "category": category
+            "_category": category  # Internal flag, excluded from CSV writer
         }
     return None
 
@@ -186,10 +186,10 @@ else:
 matched_items.sort(key=lambda x: x["stock"], reverse=True)
 
 # Smart quota selections
-boss_items = [i for i in matched_items if i['category'] == 'boss'][:20]
-armani_items = [i for i in matched_items if i['category'] == 'armani'][:20]
-gucci_items = [i for i in matched_items if i['category'] == 'gucci'][:10]
-dg_items = [i for i in matched_items if i['category'] == 'dg'][:10]
+boss_items = [i for i in matched_items if i['_category'] == 'boss'][:20]
+armani_items = [i for i in matched_items if i['_category'] == 'armani'][:20]
+gucci_items = [i for i in matched_items if i['_category'] == 'gucci'][:10]
+dg_items = [i for i in matched_items if i['_category'] == 'dg'][:10]
 
 selected_skus = {i['sku'] for i in boss_items + armani_items + gucci_items + dg_items}
 unique_items = boss_items + armani_items + gucci_items + dg_items
@@ -202,9 +202,20 @@ if remaining_slots > 0:
 
 unique_items = unique_items[:EXACT_TARGET_COUNT]
 
+# Clean items to strip out internal tracking keys before saving to CSV
+clean_output_items = []
+for item in unique_items:
+    clean_output_items.append({
+        "sku": item["sku"],
+        "brand": item["brand"],
+        "name": item["name"],
+        "stock": item["stock"],
+        "price": item["price"],
+        "ean": item["ean"]
+    })
+
 with open(OUTPUT_FILE, mode="w", newline="", encoding="utf-8") as outfile:
     writer = csv.DictWriter(outfile, fieldnames=["sku", "brand", "name", "stock", "price", "ean"], delimiter=";")
-    writer.writeheader()
-    writer.writerows(unique_items)
+    writer.writerows(clean_output_items)
 
-print(f"\n{OUTPUT_FILE} successfully saved with {len(unique_items)} products (Boss: {len(boss_items)}, Armani: {len(armani_items)}, Gucci: {len(gucci_items)}, D&G: {len(dg_items)})!")
+print(f"\n{OUTPUT_FILE} successfully saved with {len(clean_output_items)} products (Boss: {len(boss_items)}, Armani: {len(armani_items)}, Gucci: {len(gucci_items)}, D&G: {len(dg_items)})!")
