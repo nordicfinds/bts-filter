@@ -33,20 +33,20 @@ def parse_immediate_stock(row):
     return 0
 
 def extract_ean(row, sku):
+    """Check exact EAN headers first, then scan all fields for a 12-14 digit barcode."""
     for k in ['EAN', 'Ean', 'ean', 'GTIN', 'Strekkode', 'BarCode', 'EAN13']:
         val = str(row.get(k, '')).strip()
-        if val and val.isdigit():
+        if val.isdigit() and len(val) in [8, 12, 13, 14]:
             return val
             
     for k, val in row.items():
         val_str = str(val).strip()
-        if val_str.isdigit() and len(val_str) in [8, 12, 13, 14]:
+        if val_str.isdigit() and len(val_str) in [12, 13, 14]:
             return val_str
             
     return str(sku).strip()
 
 def extract_rich_description_with_specs(row, name, category):
-    """Combine name, category, and all feed specification columns into a detailed description."""
     desc_lines = [f"<h3>{name}</h3>"]
     if category:
         desc_lines.append(f"<p><b>Kategori:</b> {category}</p>")
@@ -54,7 +54,7 @@ def extract_rich_description_with_specs(row, name, category):
     specs_lines = ["<br><b>Spesifikasjoner:</b><ul>"]
     has_specs = False
 
-    skip_keys = {'Produktnamn', 'Kategori namn', 'Pris', 'Price', 'Produktnummer', 'SKU', 'Lagerstatus [ja eller förväntad leveranstid]', 'image', 'bilde', 'ean'}
+    skip_keys = {'Produktnamn', 'Kategori namn', 'Pris', 'Price', 'Produktnummer', 'SKU', 'Lagerstatus [ja eller förväntad leveranstid]', 'image', 'bilde', 'ean', 'EAN'}
     
     for key, val in row.items():
         if not key or not val:
@@ -99,7 +99,7 @@ def extract_all_images(row, sku):
     return "|".join(urls)
 
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with full specifications in descriptions...")
+    print("🚀 Running DCS SE/DK filter with exact EAN column targeting...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -172,7 +172,7 @@ def run_workflow():
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Created dcs_filtered_se_dk.csv with specifications included in descriptions.")
+    print(f"✅ Created dcs_filtered_se_dk.csv with prioritized EAN extraction.")
 
 if __name__ == '__main__':
     run_workflow()
