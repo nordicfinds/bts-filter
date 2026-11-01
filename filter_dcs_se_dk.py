@@ -107,4 +107,50 @@ def run_workflow():
         name = str(row.get('Produktnamn', '')).strip()
         category = str(row.get('Kategori namn', '')).strip()
         
-        price_raw = row.get('
+        price_raw = row.get('Pris', '0')
+        try:
+            price_dkk = float(str(price_raw).replace(',', '.'))
+        except ValueError:
+            continue
+
+        price_sek = price_dkk * DKK_TO_SEK_RATE
+
+        if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
+            continue
+            
+        condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
+        if not is_brand_new_sealed(name, condition):
+            continue
+
+        text_check = f"{category} {name}".lower()
+        if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
+            continue
+
+        ean = extract_ean(row, sku)
+        image_urls = extract_all_images(row, sku)
+        description = extract_all_descriptions(row, name)
+
+        products.append({
+            "sku": sku,
+            "ean": ean,
+            "name": name,
+            "category": category,
+            "price_sek": round(price_sek, 2),
+            "stock": stock_qty,
+            "description": description,
+            "image_url": image_urls
+        })
+
+        if len(products) >= 200:
+            break
+
+    output_fields = ["sku", "ean", "name", "category", "price_sek", "stock", "description", "image_url"]
+    with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=output_fields, delimiter=';')
+        writer.writeheader()
+        writer.writerows(products)
+        
+    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products.")
+
+if __name__ == '__main__':
+    run_workflow()
