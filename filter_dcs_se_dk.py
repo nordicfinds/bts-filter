@@ -1,5 +1,4 @@
 import csv
-import json
 import requests
 
 DCS_LIVE_URL = "https://dcs.dk/pricelist?kundenummer=Shymon%20Uzzman&type=145501807be2cac040288d2b3285684ae47940"
@@ -54,26 +53,25 @@ def run_se_dk_filter():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        images_dict = {}
-        if image_url:
-            images_dict["0"] = f"url:{image_url}"
-
         products.append({
             "sku": sku,
             "name": name,
             "category": category,
             "price_sek": round(price_sek, 2),
             "stock": stock_qty,
-            "images": images_dict
+            "image_url": image_url
         })
 
         if len(products) >= 200:
             break
 
-    with open('dcs_filtered_se_dk.json', 'w', encoding='utf-8') as f:
-        json.dump(products, f, indent=4, ensure_ascii=False)
+    # Save as CSV file so it matches Base.com's Custom format CSV importer
+    with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=["sku", "name", "category", "price_sek", "stock", "image_url"], delimiter=';')
+        writer.writeheader()
+        writer.writerows(products)
         
-    print(f"✅ Filtered {len(products)} brand-new, sealed, tax-safe items for SE & DK.")
+    print(f"✅ Filtered {len(products)} brand-new, sealed, tax-safe items to CSV for SE & DK.")
 
 if __name__ == '__main__':
     run_se_dk_filter()
