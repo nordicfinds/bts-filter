@@ -52,7 +52,6 @@ def extract_ean(row, sku):
     return ""
 
 def extract_all_descriptions(row, default_name):
-    """Combine short, long, and full text descriptions from all feed fields."""
     desc_parts = []
     for key, val in row.items():
         if not key or not val:
@@ -68,9 +67,7 @@ def extract_all_descriptions(row, default_name):
     return default_name
 
 def extract_all_images(row, sku):
-    """Collect all image URLs into a pipe-separated (|) string for Base.com."""
     urls = []
-    
     for key, val in row.items():
         if not val or not key:
             continue
@@ -86,7 +83,6 @@ def extract_all_images(row, sku):
                 if full_url not in urls:
                     urls.append(full_url)
 
-    # Fallback to standard SKU image if no direct image URLs found
     if sku:
         sku_url = f"https://dcs.dk/images/items/{sku}.jpg"
         if sku_url not in urls:
@@ -95,7 +91,7 @@ def extract_all_images(row, sku):
     return "|".join(urls)
 
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with ALL images and descriptions...")
+    print("🚀 Running DCS SE/DK filter with EAN, ALL images, and descriptions...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -124,3 +120,36 @@ def run_workflow():
             
         condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
         if not is_brand_new_sealed(name, condition):
+            continue
+
+        text_check = f"{category} {name}".lower()
+        if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
+            continue
+
+        ean = extract_ean(row, sku)
+        image_urls = extract_all_images(row, sku)
+        description = extract_all_descriptions(row, name)
+
+        products.append({
+            "sku": sku,
+            "ean": ean,
+            "name": name,
+            "category": category,
+            "price_sek": round(price_sek, 2),
+            "stock": stock_qty,
+            "description": description,
+            "image_url": image_urls
+        })
+
+        if len(products) >= 200:
+            break
+
+    output_fields = ["sku", "ean", "name", "category", "price_sek", "stock", "description", "image_url"]
+    with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=output_fields, delimiter=';')
+        writer.writeheader()
+        writer.writerows(products)
+        
+    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products, EANs, all images & descriptions.")
+
+if __name__ == '__main__':
