@@ -1,0 +1,1602 @@
+[
+    {
+        "sku": "70642",
+        "name": "LogiLink USB Line Extender USB-forlængerkabel",
+        "category": "",
+        "price_sek": 228.25,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "94799",
+        "name": "TRENDnet TK CU10 Kabel til tastatur / video / mus (KVM)",
+        "category": "Hårdvara",
+        "price_sek": 111.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "352388",
+        "name": "Delock USB forlængerkabel 15cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "352414",
+        "name": "DeLOCK Seriel ATA-forlængerkabel Gul 30cm",
+        "category": "Hårdvara",
+        "price_sek": 31.85,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "474993",
+        "name": "Delock Serielforlængerkabel 2m Beige",
+        "category": "Hårdvara",
+        "price_sek": 54.62,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "553450",
+        "name": "Delock Slot bracket USB-kabel 50cm",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657611",
+        "name": "Delock Nulmodem-kabel 3m Grå",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657667",
+        "name": "Delock DVI-kabel 50cm",
+        "category": "Hårdvara",
+        "price_sek": 60.76,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657675",
+        "name": "DeLOCK Power Over eSATA kabel Sort 1m",
+        "category": "Hårdvara",
+        "price_sek": 115.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987670147",
+        "name": "LogiLink CAT 6 Ikke afskærmet parsnoet (UTP) 305m Bulkkabel",
+        "category": "Hårdvara",
+        "price_sek": 1117.29,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987682420",
+        "name": "Digitus DN-19 ORG-3U-SW Rack-kabel styrepanel Sort",
+        "category": "Hårdvara",
+        "price_sek": 254.15,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987686204",
+        "name": "APC Strøm IEC 60320 C19 Strøm IEC 60320 C14 Sort 2m Strømkabel",
+        "category": "Hårdvara",
+        "price_sek": 1074.99,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987692176",
+        "name": "Delock High Speed HDMI with Ethernet HDMI-kabel med Ethernet 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 202.54,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "71006",
+        "name": "LogiLink Sikkerhedskabelslås",
+        "category": "Hårdvara",
+        "price_sek": 81.62,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987714302",
+        "name": "Nikon Remote Cord MC-DC2 kabel til kamera Sort",
+        "category": "Datortillbehör och software",
+        "price_sek": 412.59,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987719876",
+        "name": "SilverStone Seriel ATA-kabel Sort 50cm",
+        "category": "Hårdvara",
+        "price_sek": 116.17,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987787421",
+        "name": "Jabra Siemens DHSG cable Kabel til hovedsæt",
+        "category": "",
+        "price_sek": 488.47,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987787423",
+        "name": "Jabra Telefonlinjekabel 50cm",
+        "category": "",
+        "price_sek": 239.91,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "205343",
+        "name": "Cisco SFP Copper Twinax Cable Dobbelt-axial 1m Direkte påsætning-kabel",
+        "category": "Hårdvara",
+        "price_sek": 1062.11,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988096467",
+        "name": "ATEN KA7570 USB KVM Adapter Cable Kabel til tastatur / video / mus (KVM)",
+        "category": "Hårdvara",
+        "price_sek": 811.05,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "349299",
+        "name": "DeLOCK USB strømkabel 1m",
+        "category": "",
+        "price_sek": 88.46,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "474991",
+        "name": "Delock Strømkabel 21cm",
+        "category": "Hårdvara",
+        "price_sek": 38.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988182420",
+        "name": "Eaton Strømkabel",
+        "category": "Hårdvara",
+        "price_sek": 277.71,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988255649",
+        "name": "Eaton Strømkabel 1.7m Sort",
+        "category": "Hårdvara",
+        "price_sek": 242.67,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988334488",
+        "name": "Xerox Strømkabel",
+        "category": "Hårdvara",
+        "price_sek": 162.04,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988425598",
+        "name": "Electronic HP Care Pack Next Business Day Hardware Support Accidental Damage Protection Support opgradering 1år",
+        "category": "Hårdvara",
+        "price_sek": 615.23,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657382",
+        "name": "Delock DisplayPort kabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 202.54,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657388",
+        "name": "Delock USB-kabel 50cm",
+        "category": "Hårdvara",
+        "price_sek": 43.24,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657478",
+        "name": "Delock High Speed HDMI with Ethernet HDMI-kabel med Ethernet 2m",
+        "category": "Hårdvara",
+        "price_sek": 79.65,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658064",
+        "name": "LogiLink USB-kabel 2m Sort",
+        "category": "Hårdvara",
+        "price_sek": 61.92,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658416",
+        "name": "DeLOCK Seriel ATA-forlængerkabel Gul 50cm",
+        "category": "Hårdvara",
+        "price_sek": 34.13,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658417",
+        "name": "DeLOCK Seriel ATA-forlængerkabel Gul 1m",
+        "category": "Hårdvara",
+        "price_sek": 36.41,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987660056",
+        "name": "DIGITUS Professional Line DN-19 ORG-2U-SW Rack-kabel styrepanel Sort",
+        "category": "Hårdvara",
+        "price_sek": 374.93,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988492155",
+        "name": "StarTech.com 2-in-1 USB KVM Cable - / video / mouse / USB cable - HD-15 (VGA), USB Type B (M) to USB, HD-15 (VGA) - 6 ft - SVUSB2N1_6 Tastatur / video / mus / USB kabel",
+        "category": "Hårdvara",
+        "price_sek": 195.38,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988492579",
+        "name": "StarTech.com DVI to VGA Cable Adapter - Black - M/F - DVI-I to VGA Converter Adapter (DVIVGAMFBK) VGA-adapter Sort",
+        "category": "Hårdvara",
+        "price_sek": 20.48,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988492878",
+        "name": "StarTech.com USB 3.0 USB forlængerkabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 1278.24,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988492904",
+        "name": "StarTech.com 6in SATA Power to 6 Pin PCI Express Video Card Power Cable Adapter - SATA to 6 pin PCIe power Strømkabel 15cm",
+        "category": "Hårdvara",
+        "price_sek": 105.8,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988527213",
+        "name": "Goobay SATA III kabel 0,3 m GUL vinklet + sikring",
+        "category": "Hårdvara",
+        "price_sek": 18.21,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988547463",
+        "name": "Akasa EXUSBIE-40 USB-kabel 40cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 163.32,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988680130",
+        "name": "Noctua Forlængerkabel til blæserstrøm 30cm",
+        "category": "Hårdvara",
+        "price_sek": 131.24,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674172",
+        "name": "brennenstuhl H03VVH2-F 2x0.75 Forlængerkabel til strøm 5m Hvid",
+        "category": "Hårdvara",
+        "price_sek": 90.99,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987677530",
+        "name": "Delock USB-kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 51.89,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "989177731",
+        "name": "DELTACO Strøm CEE 7/7 (male) - Strøm IEC 60320 C5 Sort 3m Strømkabel",
+        "category": "Hårdvara",
+        "price_sek": 138.18,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987688757",
+        "name": "LogiLink Network Cable Tester Netværkstester Kobber",
+        "category": "Hårdvara",
+        "price_sek": 105.62,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987688756",
+        "name": "LogiLink Network Cable Tester Netværkstester Kobber",
+        "category": "Hårdvara",
+        "price_sek": 84.2,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987689893",
+        "name": "Delock USB-kabel 1.8m",
+        "category": "Hårdvara",
+        "price_sek": 45.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987690076",
+        "name": "Kensington CableSaver Sikkerhedsbeskyttelse til periffære kabler",
+        "category": "Hårdvara",
+        "price_sek": 159.6,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987690851",
+        "name": "brennenstuhl H05RR-F 3G1,5 Forlængerkabel til strøm 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 164.35,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987701284",
+        "name": "Braun Kombipack 52B Barberblad",
+        "category": "Hushålls- och personlig omvårdnad",
+        "price_sek": 498.39,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988164108",
+        "name": "Evolis Kassette til print-bånd Farve (gul, magenta, cyan, resinsort, skabelon) R5F008EAA",
+        "category": "Hårdvara",
+        "price_sek": 1129.53,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988200530",
+        "name": "HP Display-kabelkit 2m",
+        "category": "Hårdvara",
+        "price_sek": 245.16,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988281179",
+        "name": "Lenovo Onsite + Accidental Damage Protection - support opgradering - 1 år - on-site",
+        "category": "Hårdvara",
+        "price_sek": 875.66,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988492552",
+        "name": "StarTech.com 6ft 4-in-1 USB DisplayPort® KVM Cable w/ Audio & Microphone (DP4N1USB6) Video / USB / lydkabel",
+        "category": "Hårdvara",
+        "price_sek": 258.43,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988493043",
+        "name": "StarTech.com 12in 15 pin SATA Power Extension Cable - SATA Power Male to Female Extender - 12 Inch SATA Power Extension Cord Forlængerkabel til strøm 30.5cm",
+        "category": "Hårdvara",
+        "price_sek": 184.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "988785684",
+        "name": "Delock DisplayPort kabel 1m Sort",
+        "category": "Hårdvara",
+        "price_sek": 86.04,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "989201313",
+        "name": "DELTACO Audiokabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 97.34,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "989201820",
+        "name": "DELTACO Forlængerkabel til strøm 30cm",
+        "category": "Hårdvara",
+        "price_sek": 119.58,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "989503305",
+        "name": "DeLOCK 86374 DisplayPort kabel 0,5 m Mini DisplayPort Sort",
+        "category": "Hårdvara",
+        "price_sek": 136.57,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "989522212",
+        "name": "goobay USB Type-C kabel 60cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 52.34,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "71007",
+        "name": "LogiLink Sikkerhedskabelslås",
+        "category": "Hårdvara",
+        "price_sek": 79.65,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "72314",
+        "name": "DeLOCK Seriel ATA-kabel 30cm",
+        "category": "Hårdvara",
+        "price_sek": 45.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "74541",
+        "name": "LogiLink Network Cable Tester Netværkstestersæt Kobber",
+        "category": "Hårdvara",
+        "price_sek": 194.56,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "84069",
+        "name": "Apple Lightning-kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 134.26,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "94798",
+        "name": "TRENDnet TK CU06 Kabel til tastatur / video / mus (KVM)",
+        "category": "Hårdvara",
+        "price_sek": 140.68,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "97408",
+        "name": "LogiLink USB forlængerkabel 1.2m",
+        "category": "Hårdvara",
+        "price_sek": 139.64,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "97410",
+        "name": "LogiLink USB forlængerkabel 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 138.91,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "283932",
+        "name": "Delock DVI-kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 225.29,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "285565",
+        "name": "Delock USB forlængerkabel 10m",
+        "category": "Hårdvara",
+        "price_sek": 248.06,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "286727",
+        "name": "Delock Strømkabel 12cm",
+        "category": "Hårdvara",
+        "price_sek": 38.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "286776",
+        "name": "LogiLink Mini with retractable cable Optisk Kablet",
+        "category": "Hårdvara",
+        "price_sek": 92.41,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "286851",
+        "name": "LogiLink 5 in 1 Cable Tester Netværkstestersæt Kobber",
+        "category": "Hårdvara",
+        "price_sek": 395.34,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "287103",
+        "name": "Delock DisplayPort kabel 3m",
+        "category": "Hårdvara",
+        "price_sek": 113.79,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "287214",
+        "name": "Delock High Speed HDMI with Ethernet HDMI-kabel med Ethernet 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 160.67,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "288490",
+        "name": "DeLOCK Seriel ATA/SAS-kabel 50cm",
+        "category": "Hårdvara",
+        "price_sek": 202.54,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "288570",
+        "name": "Delock VGA-kabel 5m",
+        "category": "Hårdvara",
+        "price_sek": 205.79,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "296550",
+        "name": "ATEN 2L-5202UP Kabel til tastatur / video / mus (KVM)",
+        "category": "Hårdvara",
+        "price_sek": 324.11,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "296779",
+        "name": "DeLOCK Seriel ATA-kabel Rød 30cm",
+        "category": "Hårdvara",
+        "price_sek": 24.15,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "349191",
+        "name": "Delock Strømkabel 16cm",
+        "category": "Hårdvara",
+        "price_sek": 28.63,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "350711",
+        "name": "Delock IEEE 1394 kabel 3m",
+        "category": "Hårdvara",
+        "price_sek": 130.49,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "352102",
+        "name": "Delock Serielforlængerkabel 1m Beige",
+        "category": "Hårdvara",
+        "price_sek": 43.24,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "475007",
+        "name": "Delock Video/audiokabelpakke",
+        "category": "Hårdvara",
+        "price_sek": 106.89,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "503350",
+        "name": "LogiLink USB forlængerkabel 2m Sort",
+        "category": "Hårdvara",
+        "price_sek": 50.06,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "508766",
+        "name": "Delock IEEE 1394 kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "519350",
+        "name": "Delock Serielt kabel 2m Beige",
+        "category": "Hårdvara",
+        "price_sek": 54.62,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "526721",
+        "name": "DeLOCK Riser Card PCI Express x1 Flexible Cable Udvidelseskort",
+        "category": "Hårdvara",
+        "price_sek": 543.89,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1006903",
+        "name": "Delock VGA-kabel 15m",
+        "category": "Hårdvara",
+        "price_sek": 447.44,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1008594",
+        "name": "Delock IEEE 1394 kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 86.47,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1016876",
+        "name": "ATEN 2L-5303P Tastatur- / mus- / video- / lydkabel",
+        "category": "Hårdvara",
+        "price_sek": 293.68,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1026399",
+        "name": "Delock Audiokabel 2.5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 31.85,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1027608",
+        "name": "Delock DisplayPort kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 111.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1033173",
+        "name": "Delock USB-kabel 0.5m",
+        "category": "Hårdvara",
+        "price_sek": 31.85,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1043071",
+        "name": "Apple USB-A til Lightning kabel 0,5m",
+        "category": "Hårdvara",
+        "price_sek": 116.06,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1049080",
+        "name": "DeLOCK Seriel ATA-kabel Rød 50cm",
+        "category": "Hårdvara",
+        "price_sek": 61.57,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1049552",
+        "name": "Delock USB-kabel 11cm",
+        "category": "Hårdvara",
+        "price_sek": 25.03,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1049556",
+        "name": "Delock Serielt kabel 5m Beige",
+        "category": "Hårdvara",
+        "price_sek": 94.49,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1049672",
+        "name": "Delock Strømkabel 20cm",
+        "category": "Hårdvara",
+        "price_sek": 30.71,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1059907",
+        "name": "Delock IEEE 1394 kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 88.75,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1067483",
+        "name": "Delock High Speed HDMI with Ethernet HDMI-kabel med Ethernet 15m",
+        "category": "Hårdvara",
+        "price_sek": 566.66,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1067671",
+        "name": "DeLOCK Riser Card PCI Express x1 Flexible Cable Udvidelseskort",
+        "category": "Hårdvara",
+        "price_sek": 580.3,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1068775",
+        "name": "Delock Videoadapterkabel 18cm",
+        "category": "Hårdvara",
+        "price_sek": 132.74,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1080977",
+        "name": "DeLOCK Power Over eSATA kabel Sort 50cm",
+        "category": "Hårdvara",
+        "price_sek": 93.31,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1091755",
+        "name": "LogiLink Videoadapterkabel 2m Hvid",
+        "category": "Hårdvara",
+        "price_sek": 125.16,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1092246",
+        "name": "LogiLink CAT 5e Ikke afskærmet parsnoet (UTP) 15m Patchkabel Hvid",
+        "category": "Hårdvara",
+        "price_sek": 83.68,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1098576",
+        "name": "DeLOCK Serial Attached SCSI (SAS) internt kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 370.95,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1099897",
+        "name": "LogiLink CAT 6 Ikke afskærmet parsnoet (UTP) 100m Bulkkabel",
+        "category": "Hårdvara",
+        "price_sek": 352.73,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "1108812",
+        "name": "Lenovo Display kabel 20cm",
+        "category": "Hårdvara",
+        "price_sek": 242.45,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987655331",
+        "name": "LogiLink High Speed with Ethernet HDMI-forlængerkabel med Ethernet 2m",
+        "category": "Hårdvara",
+        "price_sek": 72.14,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987655332",
+        "name": "LogiLink High Speed with Ethernet HDMI-forlængerkabel med Ethernet 3m",
+        "category": "Hårdvara",
+        "price_sek": 83.22,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987656490",
+        "name": "LogiLink USB 2.0 USB forlængerkabel 15m Sort",
+        "category": "Hårdvara",
+        "price_sek": 320.85,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987656589",
+        "name": "Delock Strømkabel 10cm",
+        "category": "Hårdvara",
+        "price_sek": 38.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987656594",
+        "name": "Delock USB-kabel 23cm",
+        "category": "Hårdvara",
+        "price_sek": 34.13,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657363",
+        "name": "Delock USB-kabel 1.5m",
+        "category": "Hårdvara",
+        "price_sek": 45.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657371",
+        "name": "Delock USB / strøm kabel 1.5m",
+        "category": "Hårdvara",
+        "price_sek": 56.9,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657377",
+        "name": "DeLOCK USB strømkabel 1.83m",
+        "category": "",
+        "price_sek": 79.48,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657433",
+        "name": "DeLOCK Seriel ATA-kabel Rød 30cm",
+        "category": "Hårdvara",
+        "price_sek": 60.87,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657436",
+        "name": "Delock VGA-kabel 3m",
+        "category": "Hårdvara",
+        "price_sek": 142.62,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657451",
+        "name": "Delock IEEE 1394 kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 56.9,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657454",
+        "name": "Delock HDMI-kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 134.26,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657455",
+        "name": "Delock HDMI-kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 125.16,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657458",
+        "name": "Delock IEEE 1394 kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 100.13,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657466",
+        "name": "Delock IEEE 1394 kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 106.73,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657477",
+        "name": "Delock High Speed HDMI with Ethernet HDMI-kabel med Ethernet 1m",
+        "category": "Hårdvara",
+        "price_sek": 59.49,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657527",
+        "name": "Delock Premium USB forlængerkabel 2m Sort",
+        "category": "Hårdvara",
+        "price_sek": 125.16,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657544",
+        "name": "DeLOCK Seriel ATA-kabel Gul 50cm",
+        "category": "Hårdvara",
+        "price_sek": 33.11,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657566",
+        "name": "Delock DisplayPort kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 120.62,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657576",
+        "name": "Delock USB 3.0 Pin Header USB forlængerkabel 45cm Blå",
+        "category": "Hårdvara",
+        "price_sek": 77.38,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657602",
+        "name": "DeLOCK Serial Attached SCSI (SAS) internt kabel 50cm",
+        "category": "Hårdvara",
+        "price_sek": 304.95,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657603",
+        "name": "DeLOCK Seriel ATA/SAS-kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 238.95,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657610",
+        "name": "Delock Nulmodem-kabel 1.8m Grå",
+        "category": "Hårdvara",
+        "price_sek": 66.39,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657614",
+        "name": "Delock Audiokabel 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 40.16,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657619",
+        "name": "DeLOCK Seriel ATA-kabel Rød 50cm",
+        "category": "Hårdvara",
+        "price_sek": 31.85,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657621",
+        "name": "DeLOCK Seriel ATA-kabel Rød 50cm",
+        "category": "Hårdvara",
+        "price_sek": 72.82,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657663",
+        "name": "DeLOCK Seriel ATA-kabel Rød 50cm",
+        "category": "Hårdvara",
+        "price_sek": 69.32,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657665",
+        "name": "DeLOCK Seriel ATA-forlængerkabel 20cm",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657676",
+        "name": "DeLOCK Power Over eSATA kabel Sort 50cm",
+        "category": "Hårdvara",
+        "price_sek": 91.03,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657736",
+        "name": "DeLOCK HF Antenna Connection for Installation 20cm Antennekabel Sort",
+        "category": "Hårdvara",
+        "price_sek": 86.71,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657751",
+        "name": "Delock Premium USB-kabel 2m Sort",
+        "category": "Hårdvara",
+        "price_sek": 135.42,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987657761",
+        "name": "DeLOCK Riser card PCI 32 Bit flexible cable left insertion Udvidelseskort",
+        "category": "Hårdvara",
+        "price_sek": 286.81,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658065",
+        "name": "LogiLink USB-kabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 111.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658068",
+        "name": "LogiLink USB forlængerkabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658098",
+        "name": "Delock Display kabel 20cm",
+        "category": "Hårdvara",
+        "price_sek": 170.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658333",
+        "name": "DeLOCK Seriel ATA-kabel Gul 50cm",
+        "category": "Hårdvara",
+        "price_sek": 26.54,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658315",
+        "name": "Delock Forlængerkabel til strøm 20cm",
+        "category": "Hårdvara",
+        "price_sek": 56.9,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658350",
+        "name": "Delock IEEE 1394 kabel 3m",
+        "category": "Hårdvara",
+        "price_sek": 130.49,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658386",
+        "name": "Delock Premium USB-kabel 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 200.26,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658408",
+        "name": "DeLOCK Seriel ATA-kabel Gul 50cm",
+        "category": "Hårdvara",
+        "price_sek": 31.88,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658407",
+        "name": "DeLOCK Seriel ATA-kabel Gul 50cm",
+        "category": "Hårdvara",
+        "price_sek": 31.85,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658452",
+        "name": "Delock USB 3.0 Pin Header USB intern til ekstern kabel 45cm Blå",
+        "category": "Hårdvara",
+        "price_sek": 80.52,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658453",
+        "name": "Delock USB 3.0 Pin Header USB intern til ekstern kabel 45cm Blå",
+        "category": "Hårdvara",
+        "price_sek": 102.07,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658470",
+        "name": "DeLOCK Serial Attached SCSI (SAS) eksternt kabel Sort 1m",
+        "category": "Hårdvara",
+        "price_sek": 643.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658469",
+        "name": "DeLOCK Serial Attached SCSI (SAS) eksternt kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 731.55,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658472",
+        "name": "DeLOCK Seriel ATA/SAS-kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 650.78,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658477",
+        "name": "Delock USB-kabel 30cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 40.97,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658476",
+        "name": "Delock USB Pinheader USB-kabel 70cm",
+        "category": "Hårdvara",
+        "price_sek": 34.13,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658485",
+        "name": "Delock USB 3.0 Pin Header USB intern til ekstern kabel 50cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 60.7,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658488",
+        "name": "Delock USB 3.0 Pin Header USB-kabel 45cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 75.1,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658506",
+        "name": "Delock Nulmodem-kabel 5m Grå",
+        "category": "Hårdvara",
+        "price_sek": 90.19,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658523",
+        "name": "Delock Audiokabel 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 35.87,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987658637",
+        "name": "DeLOCK Riser card PCI Express x1 > PCI 32Bit 5 V flexible cable Udvidelseskort",
+        "category": "Hårdvara",
+        "price_sek": 732.78,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987660541",
+        "name": "Delock Forlængerkabel til strøm 22cm",
+        "category": "Hårdvara",
+        "price_sek": 77.38,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987660785",
+        "name": "Delock High Speed HDMI with Ethernet HDMI-kabel med Ethernet 1m",
+        "category": "Hårdvara",
+        "price_sek": 65.88,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987661757",
+        "name": "Microchip Adaptec Serial Attached SCSI (SAS) internt kabel 80cm",
+        "category": "Hårdvara",
+        "price_sek": 543.31,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987662510",
+        "name": "Delock USB-kabel 60cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 38.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987662952",
+        "name": "Delock Strømkabel 30cm",
+        "category": "Hårdvara",
+        "price_sek": 29.59,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987664930",
+        "name": "Jabra Kabel til hovedsæt 2m",
+        "category": "",
+        "price_sek": 200.55,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987667274",
+        "name": "Delock DVI-kabel 2m Sort",
+        "category": "Hårdvara",
+        "price_sek": 72.6,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987667331",
+        "name": "Delock Forlængerkabel til strøm 50cm",
+        "category": "Hårdvara",
+        "price_sek": 45.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987668644",
+        "name": "Delock Videoadapterkabel 20cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 77.38,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987668687",
+        "name": "Delock DVI-kabel 18cm",
+        "category": "Hårdvara",
+        "price_sek": 155.91,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987670195",
+        "name": "LogiLink High Speed with Ethernet HDMI-kabel med Ethernet 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 66.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987670247",
+        "name": "2direct Strømkabel 2m Sort",
+        "category": "Hårdvara",
+        "price_sek": 59.16,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987672630",
+        "name": "Delock Videokabel 24cm Sort",
+        "category": "Hårdvara",
+        "price_sek": 38.69,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674171",
+        "name": "brennenstuhl H03VVH2-F 2x0.75 Forlængerkabel til strøm 3m Hvid",
+        "category": "Hårdvara",
+        "price_sek": 60.76,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674592",
+        "name": "DeLOCK RF-kabel 2m Sort Sort",
+        "category": "Bildskärmar, projektorer och TV",
+        "price_sek": 96.22,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674616",
+        "name": "DeLOCK Antennekabel 3m Sort Sort",
+        "category": "Bildskärmar, projektorer och TV",
+        "price_sek": 109.31,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674618",
+        "name": "DeLOCK RF-kabel 5m Sort Sort",
+        "category": "Bildskärmar, projektorer och TV",
+        "price_sek": 154.98,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674651",
+        "name": "Delock Strømkabel 10cm",
+        "category": "Hårdvara",
+        "price_sek": 29.59,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987674696",
+        "name": "Delock Videoadapterkabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 225.29,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987677228",
+        "name": "Honeywell Serielt kabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 312.91,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987677431",
+        "name": "Brennenstuhl Vario Line Stikdåse/Kabeltromle - 4 Stik - 5 m",
+        "category": "Hårdvara",
+        "price_sek": 328.68,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987677542",
+        "name": "Delock USB forlængerkabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 61.44,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987677540",
+        "name": "Delock USB-kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 93.28,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987677691",
+        "name": "LogiLink USB3.0 Repeater Cable USB-forlængerkabel",
+        "category": "",
+        "price_sek": 210.65,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987680741",
+        "name": "Electronic HP Care Pack Accidental Damage Protection Express Repair Support opgradering 2år",
+        "category": "Hårdvara",
+        "price_sek": 1195.83,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987681358",
+        "name": "DeLOCK Koaksial 20cm Antennekabel Sort",
+        "category": "Hårdvara",
+        "price_sek": 84.32,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987682927",
+        "name": "DeLOCK Serial Attached SCSI (SAS) internt kabel 1m",
+        "category": "Hårdvara",
+        "price_sek": 394.71,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987683310",
+        "name": "DeLOCK Kabelterminaler",
+        "category": "",
+        "price_sek": 45.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987687548",
+        "name": "DeLOCK Seriel ATA-kabel Rød 50cm",
+        "category": "Hårdvara",
+        "price_sek": 26.88,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987687582",
+        "name": "LevelOne ACC-2103 Kabel til tastatur / video / mus (KVM)",
+        "category": "Hårdvara",
+        "price_sek": 380.34,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987687678",
+        "name": "brennenstuhl H05VV-F 3G1,5 Strømkabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 110.14,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987687677",
+        "name": "brennenstuhl H05VV-F 3G1,5 Strømkabel 3m Hvid",
+        "category": "Hårdvara",
+        "price_sek": 113.0,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987687679",
+        "name": "brennenstuhl H05VV-F 3G1,5 Strømkabel 5m Hvid",
+        "category": "Hårdvara",
+        "price_sek": 145.47,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987687680",
+        "name": "brennenstuhl H05VV-F 3G1,5 Forlængerkabel til strøm 5m Sort",
+        "category": "Hårdvara",
+        "price_sek": 178.05,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987688576",
+        "name": "Delock USB-kabel 5m",
+        "category": "Hårdvara",
+        "price_sek": 111.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987688570",
+        "name": "Delock USB-kabel 2m",
+        "category": "Hårdvara",
+        "price_sek": 84.2,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987688796",
+        "name": "DeLOCK Serial Attached SCSI (SAS) internt kabel 50cm",
+        "category": "Hårdvara",
+        "price_sek": 273.31,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987689595",
+        "name": "Canon IFC 400PCU USB-kabel 1.5m",
+        "category": "Hårdvara",
+        "price_sek": 291.09,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987689839",
+        "name": "MediaRange USB forlængerkabel 3m Sort",
+        "category": "Hårdvara",
+        "price_sek": 77.17,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987690145",
+        "name": "Jabra Kabel til hovedsæt 0.5m",
+        "category": "",
+        "price_sek": 279.51,
+        "stock": 5,
+        "images": {}
+    },
+    {
+        "sku": "987690852",
+        "name": "brennenstuhl H05RR-F 3G1,5 Forlængerkabel til strøm 10m Sort",
+        "category": "Hårdvara",
+        "price_sek": 249.78,
+        "stock": 5,
+        "images": {}
+    }
+]
