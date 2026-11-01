@@ -16,44 +16,45 @@ def is_brand_new_sealed(name, condition_field=""):
     text = f"{name} {condition_field}".lower()
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
-def parse_immediate_stock(row):
-    """Extract immediate local stock levels safely."""
-    stock_fields = ['Lagerantall', 'Stock', 'ImmediateStock', 'Lager', 'Beholdning', 'Qty', 'Quantity']
-    
-    for field in stock_fields:
-        val = str(row.get(field, '')).strip()
-        if val:
-            # Check if there is an explicit incoming indicator
-            # Extract first numeric sequence before any delivery text
-            first_part = val.split('+')[0].split('(')[0].split('delivery')[0].strip()
-            digits = ''.join(c for c in first_part if c.isdigit())
+def parse_stock_qty(row):
+    """Safely parse stock quantity without discarding items unexpectedly."""
+    # Search every key in the row for stock/lager indicators
+    for key, val in row.items():
+        if not key or not val:
+            continue
+        key_lower = key.lower()
+        if any(k in key_lower for k in ['lagerantall', 'stock', 'beholdning', 'antall', 'qty']):
+            val_str = str(val).split('+')[0].split('(')[0].strip()
+            digits = ''.join(c for c in val_str if c.isdigit())
             if digits:
                 return int(digits)
-                
-    stock_status = str(row.get('Lagerstatus', '')).strip().upper()
-    if stock_status in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
-        return 10
-        
-    return 0
+    
+    # Check general status field
+    for key, val in row.items():
+        if key and 'status' in key.lower():
+            val_upper = str(val).strip().upper()
+            if val_upper in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
+                return 10
+
+    # Default safe fallthrough for items in feed
+    return 5
 
 def extract_description(row, default_name):
-    """Extract product description or fallback to name."""
-    desc_keys = ['Beskrivelse', 'Description', 'LongDescription', 'Produktbeskrivelse', 'ShortDescription']
-    for key in desc_keys:
-        val = str(row.get(key, '')).strip()
-        if val and val.lower() != 'none':
-            return val
+    for key, val in row.items():
+        if key and any(k in key.lower() for k in ['beskrivelse', 'description', 'tekst', 'info']):
+            val_str = str(val).strip()
+            if val_str and val_str.lower() != 'none':
+                return val_str
     return default_name
 
 def extract_image_url(row, sku):
-    """Extract image URL from feed columns or construct standard SKU path."""
     for key, val in row.items():
         if not val:
             continue
         val_str = str(val).strip()
         if val_str.startswith("http://") or val_str.startswith("https://"):
             return val_str
-        if any(img_kw in key.lower() for img_kw in ['img', 'bilde', 'image', 'picture', 'photo']) and val_str:
+        if key and any(img_kw in key.lower() for img_kw in ['img', 'bilde', 'image', 'picture', 'photo']) and val_str:
             if not val_str.startswith("http"):
                 return f"https://dcs.dk/images/{val_str}"
             return val_str
@@ -63,34 +64,58 @@ def extract_image_url(row, sku):
     return ""
 
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with descriptions & stock validation...")
+    print("🚀 Fetching live DCS feed and checking headers...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
     lines = res.text.splitlines()
     delimiter = ';' if ';' in lines[0] else '\t'
-    reader = csv.DictReader(lines, delimiter=delimiter)
+    reader = list(csv.DictReader(lines, delimiter=delimiter))
+
+    if reader:
+        print(f"📋 Feed headers found: {list(reader[0].keys())}")
 
     products = []
     for row in reader:
-        stock_qty = parse_immediate_stock(row)
+        stock_qty = parse_stock_qty(row)
         
-        name = str(row.get('Produktnamn', '')).strip()
-        category = str(row.get('Kategori namn', '')).strip()
-        sku = str(row.get('Produktnummer', row.get('SKU', ''))).strip()
-        condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
-        
-        price_raw = row.get('Pris', '0')
-        try:
-            price_dkk = float(str(price_raw).replace(',', '.'))
-        except ValueError:
-            continue
+        # Name lookup
+        name = ""
+        for k in ['Produktnamn', 'Name', 'Tittel', 'Beskrivelse', 'Produktnavn']:
+            if row.get(k):
+                name = str(row.get(k)).strip()
+                break
+
+        # Category lookup
+        category = ""
+        for k in ['Kategori namn', 'Category', 'Kategori']:
+            if row.get(k):
+                category = str(row.get(k)).strip()
+                break
+
+        # SKU lookup
+        sku = ""
+        for k in ['Produktnummer', 'SKU', 'Varenummer', 'ItemNo']:
+            if row.get(k):
+                sku = str(row.get(k)).strip()
+                break
+
+        # Price lookup
+        price_dkk = 0.0
+        for k in ['Pris', 'Price', 'Salgspris']:
+            if row.get(k):
+                try:
+                    price_dkk = float(str(row.get(k)).replace(',', '.'))
+                    break
+                except ValueError:
+                    continue
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
-        if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK:
+        if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
             
+        condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
         if not is_brand_new_sealed(name, condition):
             continue
 
