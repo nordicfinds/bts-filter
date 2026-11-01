@@ -16,32 +16,34 @@ def is_brand_new_sealed(name, condition_field=""):
     text = f"{name} {condition_field}".lower()
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
-def parse_stock_qty(row):
-    """Safely parse stock quantity without discarding items unexpectedly."""
-    # Search every key in the row for stock/lager indicators
-    for key, val in row.items():
-        if not key or not val:
-            continue
-        key_lower = key.lower()
-        if any(k in key_lower for k in ['lagerantall', 'stock', 'beholdning', 'antall', 'qty']):
-            val_str = str(val).split('+')[0].split('(')[0].strip()
-            digits = ''.join(c for c in val_str if c.isdigit())
-            if digits:
-                return int(digits)
+def parse_immediate_stock(row):
+    """
+    Evaluates DCS stock status:
+    - Returns numeric stock if > 0 and no future delivery text.
+    - Returns 10 if status is explicitly 'JA' or 'IN STOCK' (immediate warehouse stock).
+    - Returns 0 if it contains future dates, backorders, or incoming dates (guarantees <= 5 day dispatch).
+    """
+    raw_status = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
+    status_lower = raw_status.lower()
     
-    # Check general status field
-    for key, val in row.items():
-        if key and 'status' in key.lower():
-            val_upper = str(val).strip().upper()
-            if val_upper in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
-                return 10
+    # Exclude items with future delivery dates or backorder notes
+    if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
+        return 0
 
-    # Default safe fallthrough for items in feed
-    return 5
+    # Extract clean digits from the status field if present
+    digits = ''.join(c for c in raw_status.split('+')[0].split('(')[0] if c.isdigit())
+    if digits:
+        return int(digits)
+        
+    # Standard immediate in-stock indicator
+    if raw_status.upper() in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
+        return 10
+        
+    return 0
 
 def extract_description(row, default_name):
     for key, val in row.items():
-        if key and any(k in key.lower() for k in ['beskrivelse', 'description', 'tekst', 'info']):
+        if key and any(k in key.lower() for k in ['beskrivelse', 'description', 'tekst', 'info', 'modellnamn']):
             val_str = str(val).strip()
             if val_str and val_str.lower() != 'none':
                 return val_str
@@ -64,7 +66,7 @@ def extract_image_url(row, sku):
     return ""
 
 def run_workflow():
-    print("🚀 Fetching live DCS feed and checking headers...")
+    print("🚀 Running DCS SE/DK filter with strict immediate-stock validation...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -72,46 +74,23 @@ def run_workflow():
     delimiter = ';' if ';' in lines[0] else '\t'
     reader = list(csv.DictReader(lines, delimiter=delimiter))
 
-    if reader:
-        print(f"📋 Feed headers found: {list(reader[0].keys())}")
-
     products = []
     for row in reader:
-        stock_qty = parse_stock_qty(row)
+        stock_qty = parse_immediate_stock(row)
         
-        # Name lookup
-        name = ""
-        for k in ['Produktnamn', 'Name', 'Tittel', 'Beskrivelse', 'Produktnavn']:
-            if row.get(k):
-                name = str(row.get(k)).strip()
-                break
-
-        # Category lookup
-        category = ""
-        for k in ['Kategori namn', 'Category', 'Kategori']:
-            if row.get(k):
-                category = str(row.get(k)).strip()
-                break
-
-        # SKU lookup
-        sku = ""
-        for k in ['Produktnummer', 'SKU', 'Varenummer', 'ItemNo']:
-            if row.get(k):
-                sku = str(row.get(k)).strip()
-                break
-
-        # Price lookup
-        price_dkk = 0.0
-        for k in ['Pris', 'Price', 'Salgspris']:
-            if row.get(k):
-                try:
-                    price_dkk = float(str(row.get(k)).replace(',', '.'))
-                    break
-                except ValueError:
-                    continue
+        sku = str(row.get('Produktnummer', row.get('SKU', ''))).strip()
+        name = str(row.get('Produktnamn', '')).strip()
+        category = str(row.get('Kategori namn', '')).strip()
+        
+        price_raw = row.get('Pris', '0')
+        try:
+            price_dkk = float(str(price_raw).replace(',', '.'))
+        except ValueError:
+            continue
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
+        # Strictly filter: Stock >= 5 immediate units, Price < 1300 SEK
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
             
@@ -145,7 +124,7 @@ def run_workflow():
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products.")
+    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} immediately dispatchable products.")
 
 if __name__ == '__main__':
     run_workflow()
