@@ -33,37 +33,46 @@ def parse_immediate_stock(row):
     return 0
 
 def extract_ean(row, sku):
-    ean_keys = ['EAN', 'EANCode', 'GTIN', 'Strekkode', 'BarCode', 'EAN13', 'Ean_nr']
-    for key in ean_keys:
-        val = str(row.get(key, '')).strip()
-        if val and val.isdigit() and len(val) in [8, 12, 13, 14]:
+    for k in ['EAN', 'Ean', 'ean', 'GTIN', 'Strekkode', 'BarCode', 'EAN13']:
+        val = str(row.get(k, '')).strip()
+        if val and val.isdigit():
             return val
             
-    for key, val in row.items():
-        if key and 'ean' in key.lower():
-            val_str = str(val).strip()
-            if val_str and val_str.isdigit() and len(val_str) in [8, 12, 13, 14]:
-                return val_str
-                
-    # Fallback to SKU so EAN is never blank
+    for k, val in row.items():
+        val_str = str(val).strip()
+        if val_str.isdigit() and len(val_str) in [8, 12, 13, 14]:
+            return val_str
+            
     return str(sku).strip()
 
-def extract_rich_description(row, name, category):
-    """Ensure description contains full product details, category, and name."""
-    desc_parts = [name]
+def extract_rich_description_with_specs(row, name, category):
+    """Combine name, category, and all feed specification columns into a detailed description."""
+    desc_lines = [f"<h3>{name}</h3>"]
     if category:
-        desc_parts.append(f"Kategori: {category}")
-        
+        desc_lines.append(f"<p><b>Kategori:</b> {category}</p>")
+    
+    specs_lines = ["<br><b>Spesifikasjoner:</b><ul>"]
+    has_specs = False
+
+    skip_keys = {'Produktnamn', 'Kategori namn', 'Pris', 'Price', 'Produktnummer', 'SKU', 'Lagerstatus [ja eller förväntad leveranstid]', 'image', 'bilde', 'ean'}
+    
     for key, val in row.items():
         if not key or not val:
             continue
-        key_lower = key.lower()
-        if any(k in key_lower for k in ['beskrivelse', 'description', 'tekst', 'info', 'modellnamn', 'specs', 'detaljer']):
-            val_str = str(val).strip()
-            if val_str and val_str.lower() != 'none' and val_str not in desc_parts:
-                desc_parts.append(val_str)
-                
-    return " - ".join(desc_parts)
+        if any(skip in key for skip in skip_keys):
+            continue
+            
+        val_str = str(val).strip()
+        if val_str and val_str.lower() != 'none':
+            specs_lines.append(f"<li><b>{key}:</b> {val_str}</li>")
+            has_specs = True
+            
+    specs_lines.append("</ul>")
+    
+    if has_specs:
+        desc_lines.extend(specs_lines)
+        
+    return "".join(desc_lines)
 
 def extract_all_images(row, sku):
     urls = []
@@ -90,7 +99,7 @@ def extract_all_images(row, sku):
     return "|".join(urls)
 
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with guaranteed EAN fallbacks & rich descriptions...")
+    print("🚀 Running DCS SE/DK filter with full specifications in descriptions...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -102,11 +111,25 @@ def run_workflow():
     for row in reader:
         stock_qty = parse_immediate_stock(row)
         
-        sku = str(row.get('Produktnummer', row.get('SKU', ''))).strip()
-        name = str(row.get('Produktnamn', '')).strip()
-        category = str(row.get('Kategori namn', '')).strip()
+        sku = ""
+        for k in ['PRODUCT NUMBER', 'Produktnummer', 'SKU', 'Varenummer', 'ItemNo']:
+            if row.get(k):
+                sku = str(row.get(k)).strip()
+                break
+
+        name = ""
+        for k in ['Produktnamn', 'Name', 'Tittel', 'Produktnavn']:
+            if row.get(k):
+                name = str(row.get(k)).strip()
+                break
+
+        category = ""
+        for k in ['Kategori namn', 'Category', 'Kategori']:
+            if row.get(k):
+                category = str(row.get(k)).strip()
+                break
         
-        price_raw = row.get('Pris', '0')
+        price_raw = row.get('Pris', row.get('Price', '0'))
         try:
             price_dkk = float(str(price_raw).replace(',', '.'))
         except ValueError:
@@ -127,7 +150,7 @@ def run_workflow():
 
         ean = extract_ean(row, sku)
         image_urls = extract_all_images(row, sku)
-        description = extract_rich_description(row, name, category)
+        description = extract_rich_description_with_specs(row, name, category)
 
         products.append({
             "sku": sku,
@@ -149,7 +172,7 @@ def run_workflow():
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products.")
+    print(f"✅ Created dcs_filtered_se_dk.csv with specifications included in descriptions.")
 
 if __name__ == '__main__':
     run_workflow()
