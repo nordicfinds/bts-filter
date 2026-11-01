@@ -17,17 +17,18 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    """Extract strictly immediate warehouse stock to guarantee delivery within 5 business days."""
+    """Extract immediate local stock levels safely."""
     stock_fields = ['Lagerantall', 'Stock', 'ImmediateStock', 'Lager', 'Beholdning', 'Qty', 'Quantity']
     
     for field in stock_fields:
         val = str(row.get(field, '')).strip()
         if val:
-            # Strip out any incoming delivery notes or secondary text
-            main_val = val.split('+')[0].split('(')[0]
-            clean_val = ''.join(c for c in main_val if c.isdigit())
-            if clean_val:
-                return int(clean_val)
+            # Check if there is an explicit incoming indicator
+            # Extract first numeric sequence before any delivery text
+            first_part = val.split('+')[0].split('(')[0].split('delivery')[0].strip()
+            digits = ''.join(c for c in first_part if c.isdigit())
+            if digits:
+                return int(digits)
                 
     stock_status = str(row.get('Lagerstatus', '')).strip().upper()
     if stock_status in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
@@ -36,7 +37,7 @@ def parse_immediate_stock(row):
     return 0
 
 def extract_description(row, default_name):
-    """Extract product description from feed."""
+    """Extract product description or fallback to name."""
     desc_keys = ['Beskrivelse', 'Description', 'LongDescription', 'Produktbeskrivelse', 'ShortDescription']
     for key in desc_keys:
         val = str(row.get(key, '')).strip()
@@ -45,7 +46,7 @@ def extract_description(row, default_name):
     return default_name
 
 def extract_image_url(row, sku):
-    """Extract image URL or fallback to DCS standard SKU image path."""
+    """Extract image URL from feed columns or construct standard SKU path."""
     for key, val in row.items():
         if not val:
             continue
@@ -62,7 +63,7 @@ def extract_image_url(row, sku):
     return ""
 
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with description mapping & immediate-stock validation...")
+    print("🚀 Running DCS SE/DK filter with descriptions & stock validation...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -87,8 +88,6 @@ def run_workflow():
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
-        # 1. Must have at least 5 units ready in immediate stock
-        # 2. Must be < 1300 SEK
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK:
             continue
             
@@ -121,7 +120,7 @@ def run_workflow():
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products, descriptions, and verified fast-dispatch stock.")
+    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products.")
 
 if __name__ == '__main__':
     run_workflow()
