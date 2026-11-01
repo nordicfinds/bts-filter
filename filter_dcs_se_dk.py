@@ -7,14 +7,29 @@ MAX_PRICE_SEK = 1300
 MIN_STOCK = 5
 
 TAX_SAFE_KEYWORDS = ['tannbørste', 'toothbrush', 'oral', 'dental', 'kabel', 'cable', 'barberblad', 'hode']
-EXCLUDE_USED_KEYWORDS = ['brukt', 'brukte', 'used', 'demo', 'demovare', 'b-grade', 'refurbished', 'åpnet eske', 'open box', 'returvare', 'anvendt', 'brugt']
+EXCLUDE_USED_KEYWORDS = [
+    'brukt', 'brukte', 'used', 'demo', 'demovare', 'b-grade', 
+    'refurbished', 'åpnet eske', 'open box', 'returvare', 'anvendt', 'brugt'
+]
 
 def is_brand_new_sealed(name, condition_field=""):
     text = f"{name} {condition_field}".lower()
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
-def run_se_dk_filter():
-    print("Downloading live CSV for Sweden & Denmark tax-safe batch...")
+def extract_image_url(row):
+    """Check every possible image column name in the DCS catalog."""
+    possible_keys = [
+        'Bilde', 'Image', 'Billedurl', 'BildeURL', 'ImageURL', 
+        'Billede', 'Picture', 'ImgUrl', 'Image_URL'
+    ]
+    for key in possible_keys:
+        val = str(row.get(key, '')).strip()
+        if val and val.lower() != 'none':
+            return val
+    return ""
+
+def run_workflow():
+    print("🚀 Downloading live DCS pricelist and running image extraction...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -35,7 +50,7 @@ def run_se_dk_filter():
         category = str(row.get('Kategori namn', '')).strip()
         sku = str(row.get('Produktnummer', '')).strip()
         condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
-        image_url = str(row.get('Bilde', '') or row.get('Image', '') or row.get('Billedurl', '')).strip()
+        image_url = extract_image_url(row)
         
         try:
             price_dkk = float(str(row.get('Pris', '0')).replace(',', '.'))
@@ -65,13 +80,16 @@ def run_se_dk_filter():
         if len(products) >= 200:
             break
 
-    # Save as CSV file so it matches Base.com's Custom format CSV importer
     with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=["sku", "name", "category", "price_sek", "stock", "image_url"], delimiter=';')
+        writer = csv.DictWriter(
+            f, 
+            fieldnames=["sku", "name", "category", "price_sek", "stock", "image_url"], 
+            delimiter=';'
+        )
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Filtered {len(products)} brand-new, sealed, tax-safe items to CSV for SE & DK.")
+    print(f"✅ Saved {len(products)} products to dcs_filtered_se_dk.csv")
 
 if __name__ == '__main__':
-    run_se_dk_filter()
+    run_workflow()
