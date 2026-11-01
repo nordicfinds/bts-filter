@@ -45,14 +45,15 @@ def extract_ean(row, sku):
             if val_str and val_str.isdigit() and len(val_str) in [8, 12, 13, 14]:
                 return val_str
                 
-    clean_sku = str(sku).strip()
-    if clean_sku.isdigit() and len(clean_sku) in [8, 12, 13, 14]:
-        return clean_sku
-        
-    return ""
+    # Fallback to SKU so EAN is never blank
+    return str(sku).strip()
 
-def extract_all_descriptions(row, default_name):
-    desc_parts = []
+def extract_rich_description(row, name, category):
+    """Ensure description contains full product details, category, and name."""
+    desc_parts = [name]
+    if category:
+        desc_parts.append(f"Kategori: {category}")
+        
     for key, val in row.items():
         if not key or not val:
             continue
@@ -62,9 +63,7 @@ def extract_all_descriptions(row, default_name):
             if val_str and val_str.lower() != 'none' and val_str not in desc_parts:
                 desc_parts.append(val_str)
                 
-    if desc_parts:
-        return " | ".join(desc_parts)
-    return default_name
+    return " - ".join(desc_parts)
 
 def extract_all_images(row, sku):
     urls = []
@@ -91,7 +90,7 @@ def extract_all_images(row, sku):
     return "|".join(urls)
 
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with EAN, ALL images, and descriptions...")
+    print("🚀 Running DCS SE/DK filter with guaranteed EAN fallbacks & rich descriptions...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -128,7 +127,7 @@ def run_workflow():
 
         ean = extract_ean(row, sku)
         image_urls = extract_all_images(row, sku)
-        description = extract_all_descriptions(row, name)
+        description = extract_rich_description(row, name, category)
 
         products.append({
             "sku": sku,
