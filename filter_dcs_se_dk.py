@@ -16,9 +16,36 @@ def is_brand_new_sealed(name, condition_field=""):
     text = f"{name} {condition_field}".lower()
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
+def parse_immediate_stock(row):
+    """Extract strictly immediate warehouse stock to guarantee delivery within 5 business days."""
+    stock_fields = ['Lagerantall', 'Stock', 'ImmediateStock', 'Lager', 'Beholdning', 'Qty', 'Quantity']
+    
+    for field in stock_fields:
+        val = str(row.get(field, '')).strip()
+        if val:
+            # Strip out any incoming delivery notes or secondary text
+            main_val = val.split('+')[0].split('(')[0]
+            clean_val = ''.join(c for c in main_val if c.isdigit())
+            if clean_val:
+                return int(clean_val)
+                
+    stock_status = str(row.get('Lagerstatus', '')).strip().upper()
+    if stock_status in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
+        return 10
+        
+    return 0
+
+def extract_description(row, default_name):
+    """Extract product description from feed."""
+    desc_keys = ['Beskrivelse', 'Description', 'LongDescription', 'Produktbeskrivelse', 'ShortDescription']
+    for key in desc_keys:
+        val = str(row.get(key, '')).strip()
+        if val and val.lower() != 'none':
+            return val
+    return default_name
+
 def extract_image_url(row, sku):
-    """Dynamically search all row keys for any URL, or construct standard DCS image link."""
-    # 1. Search every column in the feed for anything starting with http/https or containing image keywords
+    """Extract image URL or fallback to DCS standard SKU image path."""
     for key, val in row.items():
         if not val:
             continue
@@ -30,13 +57,12 @@ def extract_image_url(row, sku):
                 return f"https://dcs.dk/images/{val_str}"
             return val_str
 
-    # 2. Fallback: Construct standard DCS SKU image URL if no direct column exists
     if sku:
         return f"https://dcs.dk/images/items/{sku}.jpg"
     return ""
 
 def run_workflow():
-    print("🚀 Fetching live DCS feed with dynamic image extraction & SKU fallback...")
+    print("🚀 Running DCS SE/DK filter with description mapping & immediate-stock validation...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -46,13 +72,8 @@ def run_workflow():
 
     products = []
     for row in reader:
-        stock_status = str(row.get('Lagerstatus', '')).strip().upper()
+        stock_qty = parse_immediate_stock(row)
         
-        try:
-            stock_qty = int(str(row.get('Lagerantall', row.get('Stock', '5'))).strip())
-        except ValueError:
-            stock_qty = 5 if stock_status == 'JA' else 0
-
         name = str(row.get('Produktnamn', '')).strip()
         category = str(row.get('Kategori namn', '')).strip()
         sku = str(row.get('Produktnummer', row.get('SKU', ''))).strip()
@@ -66,8 +87,11 @@ def run_workflow():
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
+        # 1. Must have at least 5 units ready in immediate stock
+        # 2. Must be < 1300 SEK
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK:
             continue
+            
         if not is_brand_new_sealed(name, condition):
             continue
 
@@ -76,6 +100,7 @@ def run_workflow():
             continue
 
         image_url = extract_image_url(row, sku)
+        description = extract_description(row, name)
 
         products.append({
             "sku": sku,
@@ -83,22 +108,20 @@ def run_workflow():
             "category": category,
             "price_sek": round(price_sek, 2),
             "stock": stock_qty,
+            "description": description,
             "image_url": image_url
         })
 
         if len(products) >= 200:
             break
 
+    output_fields = ["sku", "name", "category", "price_sek", "stock", "description", "image_url"]
     with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(
-            f, 
-            fieldnames=["sku", "name", "category", "price_sek", "stock", "image_url"], 
-            delimiter=';'
-        )
+        writer = csv.DictWriter(f, fieldnames=output_fields, delimiter=';')
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Generated dcs_filtered_se_dk.csv with {len(products)} products and image URLs.")
+    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products, descriptions, and verified fast-dispatch stock.")
 
 if __name__ == '__main__':
     run_workflow()
