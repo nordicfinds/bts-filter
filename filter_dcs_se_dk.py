@@ -17,56 +17,85 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    """
-    Evaluates DCS stock status:
-    - Returns numeric stock if > 0 and no future delivery text.
-    - Returns 10 if status is explicitly 'JA' or 'IN STOCK' (immediate warehouse stock).
-    - Returns 0 if it contains future dates, backorders, or incoming dates (guarantees <= 5 day dispatch).
-    """
     raw_status = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
     status_lower = raw_status.lower()
     
-    # Exclude items with future delivery dates or backorder notes
     if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
         return 0
 
-    # Extract clean digits from the status field if present
     digits = ''.join(c for c in raw_status.split('+')[0].split('(')[0] if c.isdigit())
     if digits:
         return int(digits)
         
-    # Standard immediate in-stock indicator
     if raw_status.upper() in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
         return 10
         
     return 0
 
-def extract_description(row, default_name):
+def extract_ean(row, sku):
+    ean_keys = ['EAN', 'EANCode', 'GTIN', 'Strekkode', 'BarCode', 'EAN13', 'Ean_nr']
+    for key in ean_keys:
+        val = str(row.get(key, '')).strip()
+        if val and val.isdigit() and len(val) in [8, 12, 13, 14]:
+            return val
+            
     for key, val in row.items():
-        if key and any(k in key.lower() for k in ['beskrivelse', 'description', 'tekst', 'info', 'modellnamn']):
+        if key and 'ean' in key.lower():
             val_str = str(val).strip()
-            if val_str and val_str.lower() != 'none':
+            if val_str and val_str.isdigit() and len(val_str) in [8, 12, 13, 14]:
                 return val_str
-    return default_name
-
-def extract_image_url(row, sku):
-    for key, val in row.items():
-        if not val:
-            continue
-        val_str = str(val).strip()
-        if val_str.startswith("http://") or val_str.startswith("https://"):
-            return val_str
-        if key and any(img_kw in key.lower() for img_kw in ['img', 'bilde', 'image', 'picture', 'photo']) and val_str:
-            if not val_str.startswith("http"):
-                return f"https://dcs.dk/images/{val_str}"
-            return val_str
-
-    if sku:
-        return f"https://dcs.dk/images/items/{sku}.jpg"
+                
+    clean_sku = str(sku).strip()
+    if clean_sku.isdigit() and len(clean_sku) in [8, 12, 13, 14]:
+        return clean_sku
+        
     return ""
 
+def extract_all_descriptions(row, default_name):
+    """Combine short, long, and full text descriptions from all feed fields."""
+    desc_parts = []
+    for key, val in row.items():
+        if not key or not val:
+            continue
+        key_lower = key.lower()
+        if any(k in key_lower for k in ['beskrivelse', 'description', 'tekst', 'info', 'modellnamn', 'specs', 'detaljer']):
+            val_str = str(val).strip()
+            if val_str and val_str.lower() != 'none' and val_str not in desc_parts:
+                desc_parts.append(val_str)
+                
+    if desc_parts:
+        return " | ".join(desc_parts)
+    return default_name
+
+def extract_all_images(row, sku):
+    """Collect all image URLs into a pipe-separated (|) string for Base.com."""
+    urls = []
+    
+    for key, val in row.items():
+        if not val or not key:
+            continue
+        val_str = str(val).strip()
+        key_lower = key.lower()
+        
+        if any(img_kw in key_lower for img_kw in ['img', 'bilde', 'image', 'picture', 'photo', 'billede']):
+            if val_str.startswith("http://") or val_str.startswith("https://"):
+                if val_str not in urls:
+                    urls.append(val_str)
+            elif val_str and val_str.lower() != 'none':
+                full_url = f"https://dcs.dk/images/{val_str}"
+                if full_url not in urls:
+                    urls.append(full_url)
+
+    # Fallback to standard SKU image if no direct image URLs found
+    if sku:
+        sku_url = f"https://dcs.dk/images/items/{sku}.jpg"
+        if sku_url not in urls:
+            urls.append(sku_url)
+            
+    return "|".join(urls)
+
 def run_workflow():
-    print("🚀 Running DCS SE/DK filter with strict immediate-stock validation...")
+    print("🚀 Running DCS SE/DK filter with ALL images and descriptions...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -90,41 +119,8 @@ def run_workflow():
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
-        # Strictly filter: Stock >= 5 immediate units, Price < 1300 SEK
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
             
         condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
         if not is_brand_new_sealed(name, condition):
-            continue
-
-        text_check = f"{category} {name}".lower()
-        if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
-            continue
-
-        image_url = extract_image_url(row, sku)
-        description = extract_description(row, name)
-
-        products.append({
-            "sku": sku,
-            "name": name,
-            "category": category,
-            "price_sek": round(price_sek, 2),
-            "stock": stock_qty,
-            "description": description,
-            "image_url": image_url
-        })
-
-        if len(products) >= 200:
-            break
-
-    output_fields = ["sku", "name", "category", "price_sek", "stock", "description", "image_url"]
-    with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=output_fields, delimiter=';')
-        writer.writeheader()
-        writer.writerows(products)
-        
-    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} immediately dispatchable products.")
-
-if __name__ == '__main__':
-    run_workflow()
