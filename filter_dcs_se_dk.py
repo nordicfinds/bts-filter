@@ -34,7 +34,6 @@ def parse_immediate_stock(row):
     return 0
 
 def get_row_value(row, possible_keys):
-    """Utility to safely extract values case-insensitively across row headers."""
     for key, val in row.items():
         if not key or not val:
             continue
@@ -47,45 +46,43 @@ def get_row_value(row, possible_keys):
     return ""
 
 def run_workflow():
-    print("🚀 Connecting to DCS live feed with exact Danish key mapping...")
+    print("🚀 Running DCS SE/DK filter...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
     lines = res.text.splitlines()
     delimiter = ';' if ';' in lines[0] else '\t'
     reader = list(csv.DictReader(lines, delimiter=delimiter))
-    
-    print(f"📊 Total items in feed: {len(reader)}")
 
     products = []
     for row in reader:
         stock_qty = parse_immediate_stock(row)
         
-        # Extract SKU
         sku = get_row_value(row, ['Produktnummer', 'PRODUCT NUMBER', 'SKU', 'Varenummer', 'ItemNo'])
         if not sku:
             continue
 
-        # Extract EAN barcode (prioritizes EAN_nr, EAN, GTIN, Stregkode)
-        ean = get_row_value(row, ['EAN_nr', 'EAN', 'GTIN', 'Stregkode', 'Strekkode', 'BarCode', 'EAN13'])
+        # Look specifically for a real 8 to 14 digit barcode for EAN
+        ean = ""
+        for k in ['EAN_nr', 'EAN', 'GTIN', 'Stregkode', 'Strekkode', 'BarCode', 'EAN13']:
+            val = str(row.get(k, '')).strip()
+            if val.isdigit() and len(val) in [8, 12, 13, 14]:
+                ean = val
+                break
         
-        # If explicit EAN header was missing, check row for any 12-14 digit barcode string
-        if not ean or not ean.isdigit() or len(ean) not in [8, 12, 13, 14]:
+        if not ean:
             for val in row.values():
                 val_str = str(val).strip()
                 if val_str.isdigit() and len(val_str) in [12, 13, 14]:
                     ean = val_str
                     break
 
-        # Fallback to SKU only if no valid barcode exists anywhere in the record
         if not ean:
             ean = sku
 
-        # Product Name & Category
         name = get_row_value(row, ['Produktnamn', 'Name', 'Tittel', 'Produktnavn'])
         category = get_row_value(row, ['Kategori namn', 'Category', 'Kategori'])
         
-        # Price extraction
         price_raw = get_row_value(row, ['Pris', 'Price', 'pris'])
         try:
             price_dkk = float(price_raw.replace(',', '.'))
@@ -94,7 +91,6 @@ def run_workflow():
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
-        # Apply filtering thresholds
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
             
@@ -106,16 +102,11 @@ def run_workflow():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        # Build Description incorporating actual details
-        desc_parts = [f"<h3>{name}</h3>"]
-        if category:
-            desc_parts.append(f"<p><b>Kategori:</b> {category}</p>")
-            
+        # Clean description without raw messy keys
         long_desc = get_row_value(row, ['Beskrivelse', 'Description', 'Tekst', 'Specifikationer', 'Info'])
-        if long_desc:
-            desc_parts.append(f"<p>{long_desc}</p>")
-            
-        description = "".join(desc_parts)
+        description = f"<p><b>{name}</b></p><p>Kategori: {category}</p>"
+        if long_desc and long_desc != name:
+            description += f"<p>{long_desc}</p>"
 
         # Image collection
         urls = []
@@ -159,7 +150,7 @@ def run_workflow():
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Successfully created dcs_filtered_se_dk.csv with {len(products)} products.")
+    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products.")
 
 if __name__ == '__main__':
     run_workflow()
