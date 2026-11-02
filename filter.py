@@ -6,40 +6,61 @@ import re
 
 FEED_URL = "https://www.btswholesaler.com/generatefeedbts?user_id=1429150&pass=Avedore556%2C&format=csv&language_code=en-GB"
 
-# 1. EXCLUSIONS: Strictly block items you fulfill yourself
+# 1. EXCLUSIONS: Strictly block items fulfilled manually
 EXCLUDED_PHRASES = ["YARA", "ASAD", "CLUB DE NUIT"]
 
-# 2. PRIORITY BRAND: Grab 100% of Afnan products available
-PRIMARY_BRAND = "AFNAN"
-
-# 3. EXACT TOP-SELLING PERFUME NAMES (Brand + Flagship lines to guarantee)
+# 2. MASTER NORDIC BESTSELLERS LIST (Top Designer & Middle Eastern Hype Perfumes)
+# If an item from BTS is NOT on this list, it WILL NOT be pulled.
 EXACT_BEST_SELLERS = [
+    # --- MIDDLE EASTERN BESTSELLERS ---
+    # Afnan
+    "AFNAN 9PM", "AFNAN 9 PM", "SUPREMACY SILVER", "SUPREMACY NOT ONLY INTENSE", "SUPREMACY IN OUD", 
+    "SNOI", "AFNAN TURATHI BLUE", "TURATHI BROWN", "AFNAN ZIMAYA", "AFNAN HISTORIA",
     # French Avenue / Fragrance World
-    "LIQUID BRUN", "VULCAN FEU", "ROYAL BLEND", "BARAKKAT ROUGE", 
-    # Lattafa Bestsellers (Excluding Yara & Asad)
-    "KHAMRAH", "KHAMRAH QAHWA", "ECLAIRE", "FAKHAR", "BADE'E AL OUD", 
-    "AMEER AL OUD", "ANA ABIYEDH", "NEBRAS", "HONOR & GLORY", "OUD FOR GLORY",
-    # Rasasi Bestsellers
-    "HAWAS", "HAWAS ICE", "DAAREJ", "AL WISAM",
-    # Al Haramain Bestsellers
-    "AMBER OUD", "L'AVENTURE", "DETOUR NOIR",
-    # Paris Corner / Emir Bestsellers
-    "EMIR", "CELESTIAL", "RICH SANTAL", "VALOR", "AUTO GRAPH",
-    # Maison Alhambra Bestsellers
-    "WOODY OUD", "TOBACCO TOUCH", "PORTO NEROLI", "JEAN LOWE",
-    # Other Niche Hits
-    "SHIYAAKA", "9PM", "9 PM", "SUPREMACY", "RARE CARBON", "TURATHI BLUE"
+    "LIQUID BRUN", "VULCAN FEU", "ROYAL BLEND", "BARAKKAT ROUGE 540", "BARAKKAT", "SUITS", "APEX",
+    # Lattafa (Excluding Yara & Asad)
+    "KHAMRAH", "KHAMRAH QAHWA", "ECLAIRE", "FAKHAR", "BADE'E AL OUD", "OEK",
+    "AMEER AL OUD", "ANA ABIYEDH", "NEBRAS", "HONOR & GLORY", "OUD FOR GLORY", "AL NASHAMA",
+    # Rasasi
+    "HAWAS", "HAWAS ICE", "DAAREJ", "AL WISAM", "SHUHRAH",
+    # Al Haramain
+    "AMBER OUD", "AMBER OUD GOLD", "AMBER OUD BLEU", "L'AVENTURE", "DETOUR NOIR", "PORTFOLIO",
+    # Paris Corner / Emir / Pendora
+    "EMIR", "CELESTIAL", "RICH SANTAL", "VALOR", "AUTO GRAPH", "VOUX ELEGANTE", "KAHEELA",
+    # Maison Alhambra
+    "WOODY OUD", "TOBACCO TOUCH", "PORTO NEROLI", "JEAN LOWE", "JEAN LOWE OMBRE", "ALHAMBRA KISMET",
+    # Armaf / Swiss Arabian / Khadlaj
+    "SHIYAAKA", "RARE CARBON", "TAG HIM", "CLUB DE NUIT INTENSE", "SHAGHAF OUD", "HAREEM AL SULTAN",
+
+    # --- TOP DESIGNER BESTSELLERS (SE/DK MARKET) ---
+    # Yves Saint Laurent (YSL)
+    "LIBRE", "BLACK OPIUM", "Y FOR MEN", "MYSLF", "L'HOMME", "LA NUIT DE L'HOMME", "MON PARIS",
+    # Dior
+    "SAUVAGE", "DIOR HOMME", "DIOR HOMME INTENSE", "MISS DIOR", "J'ADORE", "FAHRENHEIT", "POISON",
+    # Carolina Herrera
+    "GOOD GIRL", "GOOD GIRL BLUSH", "VERY GOOD GIRL", "BAD BOY", "BAD BOY COBALT", "212 VIP",
+    # Jean Paul Gaultier
+    "LE MALE", "LE MALE ELIXIR", "ULTRA MALE", "LE BEAU", "SCANDAL", "DIVINE",
+    # Giorgio Armani
+    "ACQUA DI GIO", "ACQUA DI GIOIA", "MY WAY", "CODE", "STRONGER WITH YOU", "SI", "SI PASSIONE",
+    # Prada
+    "PARADOXE", "PARADOXE INTENSE", "L'HOMME PRADA", "LUNA ROSSA", "LUNA ROSSA OCEAN", "OCEAN",
+    # Versace
+    "EROS", "EROS FLAME", "BRIGHT CRYSTAL", "CRYSTAL NOIR", "DYLAN BLUE", "POUR HOMME",
+    # Hugo Boss
+    "BOSS BOTTLED", "BOSS BOTTLED PARFUM", "THE SCENT", "HUGO MAN", "ALIVE",
+    # Paco Rabanne
+    "1 MILLION", "ONE MILLION", "1 MILLION ELIXIR", "INVICTUS", "INVICTUS VICTORY", "PHANTOM", "FAME", "OLYMPEA",
+    # Dolce & Gabbana
+    "LIGHT BLUE", "THE ONE", "D&G K", "D&G Q", "DEVOTION",
+    # Montblanc
+    "EXPLORER", "EXPLORER PLATINUM", "LEGEND", "LEGEND NIGHT",
+    # Tom Ford / Creed / Niche
+    "BLACK ORCHID", "VELVET ORCHID", "OMBRE LEATHER", "AVENTUS", "SILVER MOUNTAIN WATER", "DELINA"
 ]
 
-# 4. FALLBACK BRANDS (To fill any remaining slots up to 150)
-OTHER_TARGET_BRANDS = [
-    "LATTAFA", "RASASI", "AL HARAMAIN", "PARIS CORNER", 
-    "MAISON ALHAMBRA", "ARMAF", "SWISS ARABIAN", "ARABIYAT", 
-    "ARD AL ZAAFARAN", "NABEEL", "KHADLAJ", "FRAGRANCE WORLD", "FRENCH AVENUE"
-]
-
-EXACT_TARGET_COUNT = 150  # Total exact limit for BTS
-MIN_STOCK = 5             # Stock must be >= 5
+MAX_TARGET_COUNT = 300  # Strict maximum limit
+MIN_STOCK = 10          # Stock threshold to avoid overselling
 
 def clean_price(val):
     if not val:
@@ -66,7 +87,7 @@ def get_stock_count(row):
     return 0.0
 
 def has_valid_image(row):
-    """Strictly checks for valid non-empty image URLs."""
+    """Checks for valid non-empty image URLs."""
     image_cols = ['image', 'image_url', 'picture', 'img', 'photo_url', 'image1', 'images']
     for col in image_cols:
         if col in row and row[col]:
@@ -76,32 +97,20 @@ def has_valid_image(row):
     return False
 
 def is_excluded(row):
-    """Check for Yara, Asad, or Club de Nuit"""
+    """Check for Yara, Asad, or Club de Nuit exclusions"""
     row_text = " ".join([str(v) for v in row.values() if v]).upper()
     for phrase in EXCLUDED_PHRASES:
         if re.search(r'\b' + re.escape(phrase) + r'\b', row_text):
             return True
     return False
 
-def get_item_tier(row):
-    """Tier 1: Exact Name Flagships & Afnan | Tier 2: General Target Brands"""
+def matches_bestseller(row):
+    """Strictly matches item against the master bestseller list."""
     row_text = " ".join([str(v) for v in row.values() if v]).upper()
-
-    # Priority 1: Check Afnan
-    if re.search(r'\bAFNAN\b', row_text):
-        return 'tier1'
-
-    # Priority 1: Check Exact Perfume Names
-    for name in EXACT_BEST_SELLERS:
-        if re.search(r'\b' + re.escape(name) + r'\b', row_text):
-            return 'tier1'
-
-    # Priority 2: Check Other Brands
-    for brand in OTHER_TARGET_BRANDS:
-        if re.search(r'\b' + re.escape(brand) + r'\b', row_text):
-            return 'tier2'
-
-    return None
+    for item_name in EXACT_BEST_SELLERS:
+        if re.search(r'\b' + re.escape(item_name) + r'\b', row_text):
+            return True
+    return False
 
 def download_feed():
     req = urllib.request.Request(FEED_URL, headers={'User-Agent': 'Mozilla/5.0'})
@@ -122,16 +131,15 @@ print(f"Downloaded catalog with {len(lines)} lines.")
 delim = ';' if ';' in lines[0] else ','
 reader = csv.DictReader(lines, delimiter=delim)
 
-tier1_candidates = []
-tier2_candidates = []
+matched_candidates = []
 
 for row in reader:
-    # 1. Stock filter
+    # 1. Stock filter (>= 10 pcs)
     stock_qty = get_stock_count(row)
     if stock_qty < MIN_STOCK:
         continue
 
-    # 2. Image filter
+    # 2. Image filter (Must have picture)
     if not has_valid_image(row):
         continue
 
@@ -139,41 +147,30 @@ for row in reader:
     if is_excluded(row):
         continue
 
-    # 4. Brand & Name Match Tier
-    tier = get_item_tier(row)
-    if not tier:
+    # 4. Strict Bestseller Verification
+    if not matches_bestseller(row):
         continue
 
-    if 'price' in row:
+    # Clean price (Keep raw EUR value)
+    if 'price' in row and row['price']:
         row['price'] = clean_price(row['price'])
-    if 'recommended_price' in row:
+    if 'recommended_price' in row and row['recommended_price']:
         row['recommended_price'] = clean_price(row['recommended_price'])
 
     for name_col in ['name', 'title', 'product_name']:
         if name_col in row:
             row[name_col] = clean_title(row[name_col])
 
-    item = {'row': row, 'stock': stock_qty}
-    if tier == 'tier1':
-        tier1_candidates.append(item)
-    else:
-        tier2_candidates.append(item)
+    matched_candidates.append({'row': row, 'stock': stock_qty})
 
-# Sort candidates by stock quantity
-tier1_candidates.sort(key=lambda x: x['stock'], reverse=True)
-tier2_candidates.sort(key=lambda x: x['stock'], reverse=True)
+# Sort matched candidates by stock quantity
+matched_candidates.sort(key=lambda x: x['stock'], reverse=True)
 
-# Combine: Put all Exact Bestsellers & Afnan first, then fill up to 150 total
-final_selected = [c['row'] for c in tier1_candidates]
+# Select up to MAX_TARGET_COUNT (300 max)
+final_selected = [c['row'] for c in matched_candidates[:MAX_TARGET_COUNT]]
 
-if len(final_selected) < EXACT_TARGET_COUNT:
-    needed = EXACT_TARGET_COUNT - len(final_selected)
-    final_selected.extend([c['row'] for c in tier2_candidates[:needed]])
-else:
-    final_selected = final_selected[:EXACT_TARGET_COUNT]
-
-print(f"Matched {len(tier1_candidates)} Tier 1 (Afnan + Named Flagships) and {len(tier2_candidates)} Tier 2 brand items.")
-print(f"Outputting exactly top {len(final_selected)} items into bts_filtered.csv.")
+print(f"Matched {len(matched_candidates)} verified bestseller items in BTS stock.")
+print(f"Outputting {len(final_selected)} items into bts_filtered.csv.")
 
 if final_selected:
     with open("bts_filtered.csv", mode="w", newline="", encoding="utf-8") as outfile:
