@@ -1,5 +1,7 @@
 import csv
 import requests
+import re
+import html
 
 DCS_LIVE_URL = "https://dcs.dk/pricelist?kundenummer=Shymon%20Uzzman&type=145501807be2cac040288d2b3285684ae47940"
 
@@ -33,6 +35,29 @@ def parse_immediate_stock(row):
         
     return 0
 
+def clean_ean(val):
+    if not val or str(val).lower() == 'none':
+        return ""
+    val_str = str(val).strip()
+    # Handle float strings like '5701234567890.0'
+    if '.' in val_str:
+        val_str = val_str.split('.')[0]
+    # Extract only digits
+    digits = ''.join(c for c in val_str if c.isdigit())
+    if len(digits) in [8, 12, 13, 14]:
+        return digits
+    return ""
+
+def clean_html_description(raw_text):
+    if not raw_text or str(raw_text).lower() == 'none':
+        return ""
+    # Remove HTML tags using regular expression
+    cleanr = re.compile('<.*?>')
+    cleansed = re.sub(cleanr, ' ', str(raw_text))
+    # Unescape HTML entities (&amp;, &nbsp;, etc.) and clean extra spaces
+    decoded = html.unescape(cleansed)
+    return re.sub(r'\s+', ' ', decoded).strip()
+
 def get_row_value(row, possible_keys):
     for key, val in row.items():
         if not key or not val:
@@ -62,20 +87,18 @@ def run_workflow():
         if not sku:
             continue
 
-        # Look specifically for a real 8 to 14 digit barcode for EAN. 
-        # If none exists, leave it blank ("") instead of duplicating the SKU so Base.com doesn't confuse them.
+        # Robust EAN lookup supporting floats and decimals
         ean = ""
         for k in ['EAN_nr', 'EAN', 'GTIN', 'Stregkode', 'Strekkode', 'BarCode', 'EAN13']:
-            val = str(row.get(k, '')).strip()
-            if val.isdigit() and len(val) in [8, 12, 13, 14]:
-                ean = val
+            val = row.get(k, '')
+            ean = clean_ean(val)
+            if ean:
                 break
         
         if not ean:
             for val in row.values():
-                val_str = str(val).strip()
-                if val_str.isdigit() and len(val_str) in [12, 13, 14]:
-                    ean = val_str
+                ean = clean_ean(val)
+                if ean:
                     break
 
         name = get_row_value(row, ['Produktnamn', 'Name', 'Tittel', 'Produktnavn'])
@@ -100,11 +123,13 @@ def run_workflow():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        # Clean description text only (no raw key dumping)
-        long_desc = get_row_value(row, ['Beskrivelse', 'Description', 'Tekst', 'Specifikationer', 'Info'])
+        # Clean description text and strip out all HTML markup code
+        raw_desc = get_row_value(row, ['Beskrivelse', 'Description', 'Tekst', 'Specifikationer', 'Info'])
+        clean_desc = clean_html_description(raw_desc)
+        
         description = f"Produkt: {name}. Kategori: {category}."
-        if long_desc and long_desc.lower() != name.lower():
-            description += f" {long_desc}"
+        if clean_desc and clean_desc.lower() != name.lower():
+            description += f" {clean_desc}"
 
         # Image collection
         urls = []
