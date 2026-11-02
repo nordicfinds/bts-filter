@@ -20,26 +20,30 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    status_val = ""
+    # Check all values in the row for any valid stock indicator or number
     for k, v in row.items():
-        if k and any(kw in k.lower() for kw in ['lager', 'stock', 'antal', 'qty', 'quantity']):
-            status_val = str(v).strip()
-            break
-            
-    if not status_val:
-        status_val = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
-        
-    if not status_val:
-        return 0
+        val_str = str(v).strip()
+        if not val_str:
+            continue
+        val_lower = val_str.lower()
+        if any(kw in val_lower for kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
+            return 0
+        # If the column header or value looks like stock/quantity
+        if k and any(s_kw in k.lower() for s_kw in ['lager', 'stock', 'antal', 'qty', 'quantity', 'status']):
+            digits = ''.join(c for c in val_str.split('+')[0].split('(')[0] if c.isdigit())
+            if digits:
+                return int(digits)
+            if val_str.upper() in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
+                return 10
 
-    status_lower = status_val.lower()
-    if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
-        return 0
-
-    digits = ''.join(c for c in status_val.split('+')[0].split('(')[0] if c.isdigit())
-    if digits:
-        return int(digits)
-        
+    # Fallback: check any numeric value in the row that could represent stock
+    for v in row.values():
+        val_str = str(v).strip()
+        if val_str.isdigit() and len(val_str) <= 3:
+            num = int(val_str)
+            if num > 0:
+                return num
+                
     return 0
 
 def clean_ean(val):
