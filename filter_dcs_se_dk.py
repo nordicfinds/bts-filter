@@ -20,19 +20,19 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    stock_val = ""
+    status_val = ""
     for k, v in row.items():
         if k and any(kw in k.lower() for kw in ['lager', 'stock', 'antal', 'qty', 'quantity']):
-            stock_val = str(v).strip()
+            status_val = str(v).strip()
             break
             
-    if not stock_val:
-        stock_val = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
+    if not status_val:
+        status_val = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
         
-    if not stock_val:
+    if not status_val:
         return 0
 
-    status_lower = stock_val.lower()
+    status_lower = status_val.lower()
     if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
         return 0
 
