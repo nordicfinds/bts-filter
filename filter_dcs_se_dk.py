@@ -20,18 +20,23 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    raw_status = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
-    status_lower = raw_status.lower()
-    
+    # Search for any stock/quantity column dynamically
+    stock_val = ""
+    for k, v in row.items():
+        if k and any(kw in k.lower() for kw in ['lager', 'stock', 'antal', 'qty', 'quantity']):
+            stock_val = str(v).strip()
+            break
+            
+    if not stock_val:
+        stock_val = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
+
+    status_lower = stock_val.lower()
     if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
         return 0
 
-    digits = ''.join(c for c in raw_status.split('+')[0].split('(')[0] if c.isdigit())
+    digits = ''.join(c for c in status_val.split('+')[0].split('(')[0] if c.isdigit())
     if digits:
         return int(digits)
-        
-    if raw_status.upper() in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
-        return 10
         
     return 0
 
@@ -39,10 +44,8 @@ def clean_ean(val):
     if not val or str(val).lower() == 'none':
         return ""
     val_str = str(val).strip()
-    # Handle float strings like '5701234567890.0'
     if '.' in val_str:
         val_str = val_str.split('.')[0]
-    # Extract only digits
     digits = ''.join(c for c in val_str if c.isdigit())
     if len(digits) in [8, 12, 13, 14]:
         return digits
@@ -51,10 +54,8 @@ def clean_ean(val):
 def clean_html_description(raw_text):
     if not raw_text or str(raw_text).lower() == 'none':
         return ""
-    # Remove HTML tags using regular expression
     cleanr = re.compile('<.*?>')
     cleansed = re.sub(cleanr, ' ', str(raw_text))
-    # Unescape HTML entities (&amp;, &nbsp;, etc.) and clean extra spaces
     decoded = html.unescape(cleansed)
     return re.sub(r'\s+', ' ', decoded).strip()
 
@@ -87,13 +88,13 @@ def run_workflow():
         if not sku:
             continue
 
-        # Robust EAN lookup supporting floats and decimals
+        # Case-insensitive EAN lookup across all columns
         ean = ""
-        for k in ['EAN_nr', 'EAN', 'GTIN', 'Stregkode', 'Strekkode', 'BarCode', 'EAN13']:
-            val = row.get(k, '')
-            ean = clean_ean(val)
-            if ean:
-                break
+        for k, val in row.items():
+            if k and any(ek in k.lower() for ek in ['ean', 'gtin', 'barcode', 'stregkode', 'strekkode']):
+                ean = clean_ean(val)
+                if ean:
+                    break
         
         if not ean:
             for val in row.values():
@@ -123,7 +124,6 @@ def run_workflow():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        # Clean description text and strip out all HTML markup code
         raw_desc = get_row_value(row, ['Beskrivelse', 'Description', 'Tekst', 'Specifikationer', 'Info'])
         clean_desc = clean_html_description(raw_desc)
         
@@ -131,7 +131,6 @@ def run_workflow():
         if clean_desc and clean_desc.lower() != name.lower():
             description += f" {clean_desc}"
 
-        # Image collection
         urls = []
         for key, val in row.items():
             if not val or not key:
