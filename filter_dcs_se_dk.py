@@ -49,7 +49,7 @@ def clean_ean(val):
     if '.' in val_str:
         val_str = val_str.split('.')[0]
     digits = ''.join(c for c in val_str if c.isdigit())
-    if len(digits) in [8, 12, 13, 14]:
+    if len(digits) >= 8:
         return digits
     return ""
 
@@ -90,23 +90,32 @@ def run_workflow():
         if not sku:
             continue
 
+        # Direct EAN lookup matching the exact header shown on DCS
         ean = ""
         for k, val in row.items():
-            if k and any(ek in k.lower() for ek in ['ean', 'gtin', 'barcode', 'stregkode', 'strekkode']):
+            if k and k.strip().lower() in ['ean', 'ean_nr', 'gtin', 'barcode', 'stregkode', 'strekkode']:
                 ean = clean_ean(val)
                 if ean:
                     break
         
         if not ean:
+            # Fallback search across any column containing 'ean'
+            for k, val in row.items():
+                if k and 'ean' in k.lower():
+                    ean = clean_ean(val)
+                    if ean:
+                        break
+
+        if not ean:
             for val in row.values():
-                ean = clean_ean(val)
-                if ean:
+                val_clean = clean_ean(val)
+                if len(val_clean) in [8, 12, 13, 14]:
+                    ean = val_clean
                     break
 
         name = get_row_value(row, ['Produktnamn', 'Name', 'Tittel', 'Produktnavn'])
         category = get_row_value(row, ['Kategori namn', 'Category', 'Kategori'])
         
-        # Prices are already in SEK from DCS account default settings
         price_raw = get_row_value(row, ['Pris', 'Price', 'pris'])
         try:
             price_sek = float(price_raw.replace(',', '.'))
