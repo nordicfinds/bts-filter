@@ -90,22 +90,14 @@ def run_workflow():
         if not sku:
             continue
 
-        # Direct EAN lookup matching the exact header shown on DCS
+        # Extract EAN checking explicit barcode headers first
         ean = ""
         for k, val in row.items():
-            if k and k.strip().lower() in ['ean', 'ean_nr', 'gtin', 'barcode', 'stregkode', 'strekkode']:
+            if k and any(ek in k.lower() for ek in ['ean', 'gtin', 'barcode', 'stregkode', 'strekkode', 'streckkod']):
                 ean = clean_ean(val)
                 if ean:
                     break
         
-        if not ean:
-            # Fallback search across any column containing 'ean'
-            for k, val in row.items():
-                if k and 'ean' in k.lower():
-                    ean = clean_ean(val)
-                    if ean:
-                        break
-
         if not ean:
             for val in row.values():
                 val_clean = clean_ean(val)
@@ -140,26 +132,8 @@ def run_workflow():
         if clean_desc and clean_desc.lower() != name.lower():
             description += f" {clean_desc}"
 
-        urls = []
-        for key, val in row.items():
-            if not val or not key:
-                continue
-            val_str = str(val).strip()
-            key_lower = key.lower()
-            if any(img_kw in key_lower for img_kw in ['img', 'bilde', 'image', 'picture', 'photo', 'billede']):
-                if val_str.startswith("http://") or val_str.startswith("https://"):
-                    if val_str not in urls:
-                        urls.append(val_str)
-                elif val_str and val_str.lower() != 'none':
-                    full_url = f"https://dcs.dk/images/{val_str}"
-                    if full_url not in urls:
-                        urls.append(full_url)
-
-        if sku:
-            sku_url = f"https://dcs.dk/images/items/{sku}.jpg"
-            if sku_url not in urls:
-                urls.append(sku_url)
-        image_urls = "|".join(urls)
+        # Reliable image URL generation using the SKU image path
+        image_url = f"https://dcs.dk/images/items/{sku}.jpg"
 
         products.append({
             "sku": sku,
@@ -169,7 +143,7 @@ def run_workflow():
             "price_sek": round(price_sek, 2),
             "stock": stock_qty,
             "description": description,
-            "image_url": image_urls
+            "image_url": image_url
         })
 
         if len(products) >= 200:
