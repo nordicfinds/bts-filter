@@ -20,7 +20,6 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    # Search for any stock/quantity column dynamically
     stock_val = ""
     for k, v in row.items():
         if k and any(kw in k.lower() for kw in ['lager', 'stock', 'antal', 'qty', 'quantity']):
@@ -88,7 +87,6 @@ def run_workflow():
         if not sku:
             continue
 
-        # Case-insensitive EAN lookup across all columns
         ean = ""
         for k, val in row.items():
             if k and any(ek in k.lower() for ek in ['ean', 'gtin', 'barcode', 'stregkode', 'strekkode']):
