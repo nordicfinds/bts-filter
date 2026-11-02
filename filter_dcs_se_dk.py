@@ -1,7 +1,6 @@
 import csv
 import requests
 
-# Your working DCS feed URL
 DCS_LIVE_URL = "https://dcs.dk/pricelist?kundenummer=Shymon%20Uzzman&type=145501807be2cac040288d2b3285684ae47940"
 
 DKK_TO_SEK_RATE = 1.55
@@ -34,8 +33,21 @@ def parse_immediate_stock(row):
         
     return 0
 
+def get_row_value(row, possible_keys):
+    """Utility to safely extract values case-insensitively across row headers."""
+    for key, val in row.items():
+        if not key or not val:
+            continue
+        clean_key = key.strip().lower()
+        for pk in possible_keys:
+            if pk.lower() == clean_key or pk.lower() in clean_key:
+                val_str = str(val).strip()
+                if val_str and val_str.lower() != 'none':
+                    return val_str
+    return ""
+
 def run_workflow():
-    print("🚀 Connecting to DCS live feed...")
+    print("🚀 Connecting to DCS live feed with exact Danish key mapping...")
     res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
@@ -49,47 +61,32 @@ def run_workflow():
     for row in reader:
         stock_qty = parse_immediate_stock(row)
         
-        # 1. Clean SKU / Product Number
-        sku = ""
-        for k in ['PRODUCT NUMBER', 'Produktnummer', 'SKU', 'Varenummer', 'ItemNo']:
-            val = str(row.get(k, '')).strip()
-            if val:
-                sku = val
-                break
+        # Extract SKU
+        sku = get_row_value(row, ['Produktnummer', 'PRODUCT NUMBER', 'SKU', 'Varenummer', 'ItemNo'])
+        if not sku:
+            continue
 
-        # 2. Clean EAN (Look specifically for barcode fields, fallback to SKU if none)
-        ean = ""
-        for k in ['EAN', 'Ean', 'ean', 'GTIN', 'Strekkode', 'BarCode', 'EAN13']:
-            val = str(row.get(k, '')).strip()
-            if val.isdigit() and len(val) in [8, 12, 13, 14]:
-                ean = val
-                break
+        # Extract EAN barcode (prioritizes EAN_nr, EAN, GTIN, Stregkode)
+        ean = get_row_value(row, ['EAN_nr', 'EAN', 'GTIN', 'Stregkode', 'Strekkode', 'BarCode', 'EAN13'])
+        
+        # If explicit EAN header was missing, check row for any 12-14 digit barcode string
+        if not ean or not ean.isdigit() or len(ean) not in [8, 12, 13, 14]:
+            for val in row.values():
+                val_str = str(val).strip()
+                if val_str.isdigit() and len(val_str) in [12, 13, 14]:
+                    ean = val_str
+                    break
+
+        # Fallback to SKU only if no valid barcode exists anywhere in the record
         if not ean:
             ean = sku
 
-        # 3. Product Name
-        name = ""
-        for k in ['Produktnamn', 'Name', 'Tittel', 'Produktnavn']:
-            val = str(row.get(k, '')).strip()
-            if val:
-                name = val
-                break
-
-        # 4. Category
-        category = ""
-        for k in ['Kategori namn', 'Category', 'Kategori']:
-            val = str(row.get(k, '')).strip()
-            if val:
-                category = val
-                break
+        # Product Name & Category
+        name = get_row_value(row, ['Produktnamn', 'Name', 'Tittel', 'Produktnavn'])
+        category = get_row_value(row, ['Kategori namn', 'Category', 'Kategori'])
         
-        # 5. Price
-        price_raw = '0'
-        for k in ['Pris', 'Price', 'pris']:
-            if row.get(k):
-                price_raw = str(row.get(k))
-                break
-
+        # Price extraction
+        price_raw = get_row_value(row, ['Pris', 'Price', 'pris'])
         try:
             price_dkk = float(price_raw.replace(',', '.'))
         except ValueError:
@@ -97,11 +94,11 @@ def run_workflow():
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
-        # Apply Filters
+        # Apply filtering thresholds
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
             
-        condition = str(row.get('Tilstand', row.get('Condition', ''))).strip()
+        condition = get_row_value(row, ['Tilstand', 'Condition'])
         if not is_brand_new_sealed(name, condition):
             continue
 
@@ -109,8 +106,16 @@ def run_workflow():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        # Clean Description (Avoid messy raw key dumps, keep it professional)
-        description = f"<h3>{name}</h3><p><b>Kategori:</b> {category}</p><p>Helt ny og uåpnet produkt med rask levering fra lager i Skandinavia.</p>"
+        # Build Description incorporating actual details
+        desc_parts = [f"<h3>{name}</h3>"]
+        if category:
+            desc_parts.append(f"<p><b>Kategori:</b> {category}</p>")
+            
+        long_desc = get_row_value(row, ['Beskrivelse', 'Description', 'Tekst', 'Specifikationer', 'Info'])
+        if long_desc:
+            desc_parts.append(f"<p>{long_desc}</p>")
+            
+        description = "".join(desc_parts)
 
         # Image collection
         urls = []
