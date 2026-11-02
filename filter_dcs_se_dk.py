@@ -62,7 +62,8 @@ def run_workflow():
         if not sku:
             continue
 
-        # Look specifically for a real 8 to 14 digit barcode for EAN
+        # Look specifically for a real 8 to 14 digit barcode for EAN. 
+        # If none exists, leave it blank ("") instead of duplicating the SKU so Base.com doesn't confuse them.
         ean = ""
         for k in ['EAN_nr', 'EAN', 'GTIN', 'Stregkode', 'Strekkode', 'BarCode', 'EAN13']:
             val = str(row.get(k, '')).strip()
@@ -76,9 +77,6 @@ def run_workflow():
                 if val_str.isdigit() and len(val_str) in [12, 13, 14]:
                     ean = val_str
                     break
-
-        if not ean:
-            ean = sku
 
         name = get_row_value(row, ['Produktnamn', 'Name', 'Tittel', 'Produktnavn'])
         category = get_row_value(row, ['Kategori namn', 'Category', 'Kategori'])
@@ -102,11 +100,11 @@ def run_workflow():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        # Clean description without raw messy keys
+        # Clean description text only (no raw key dumping)
         long_desc = get_row_value(row, ['Beskrivelse', 'Description', 'Tekst', 'Specifikationer', 'Info'])
-        description = f"<p><b>{name}</b></p><p>Kategori: {category}</p>"
-        if long_desc and long_desc != name:
-            description += f"<p>{long_desc}</p>"
+        description = f"Produkt: {name}. Kategori: {category}."
+        if long_desc and long_desc.lower() != name.lower():
+            description += f" {long_desc}"
 
         # Image collection
         urls = []
