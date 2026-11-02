@@ -1,4 +1,4 @@
-name: DCS SE/DK Catalog Filter
+name: BTS Perfume Catalog Filter
 
 on:
   schedule:
@@ -25,13 +25,13 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run SE/DK Filter
-        run: python filter_dcs_se_dk.py
+      - name: Run BTS Perfume Filter
+        run: python filter.py
 
       - name: Commit Filtered CSV
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions@users.noreply.github.com"
-          git add dcs_filtered_se_dk.csv
-          git commit -m "Automated DCS tax-safe CSV update" || exit 0
+          git add bts_filtered.csv
+          git commit -m "Automated BTS top perfumes CSV update" || exit 0
           git push
