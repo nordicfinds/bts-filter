@@ -28,6 +28,9 @@ def parse_immediate_stock(row):
             
     if not stock_val:
         stock_val = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
+        
+    if not stock_val:
+        return 0
 
     status_lower = stock_val.lower()
     if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
@@ -166,11 +169,4 @@ def run_workflow():
 
     output_fields = ["sku", "ean", "name", "category", "price_sek", "stock", "description", "image_url"]
     with open('dcs_filtered_se_dk.csv', 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=output_fields, delimiter=';')
-        writer.writeheader()
-        writer.writerows(products)
-        
-    print(f"✅ Created dcs_filtered_se_dk.csv with {len(products)} products.")
-
-if __name__ == '__main__':
-    run_workflow()
+        writer = csv.DictWriter(f, fieldnames=output_fields,
