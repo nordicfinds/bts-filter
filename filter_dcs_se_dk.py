@@ -5,7 +5,6 @@ import html
 
 DCS_LIVE_URL = "https://dcs.dk/pricelist?kundenummer=Shymon%20Uzzman&type=145501807be2cac040288d2b3285684ae47940"
 
-DKK_TO_SEK_RATE = 1.55
 MAX_PRICE_SEK = 1300
 MIN_STOCK = 5
 
@@ -20,7 +19,6 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    # Check all values in the row for any valid stock indicator or number
     for k, v in row.items():
         val_str = str(v).strip()
         if not val_str:
@@ -28,7 +26,6 @@ def parse_immediate_stock(row):
         val_lower = val_str.lower()
         if any(kw in val_lower for kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
             return 0
-        # If the column header or value looks like stock/quantity
         if k and any(s_kw in k.lower() for s_kw in ['lager', 'stock', 'antal', 'qty', 'quantity', 'status']):
             digits = ''.join(c for c in val_str.split('+')[0].split('(')[0] if c.isdigit())
             if digits:
@@ -36,7 +33,6 @@ def parse_immediate_stock(row):
             if val_str.upper() in ['JA', 'IN STOCK', 'AVAILABLE', 'ON STOCK']:
                 return 10
 
-    # Fallback: check any numeric value in the row that could represent stock
     for v in row.values():
         val_str = str(v).strip()
         if val_str.isdigit() and len(val_str) <= 3:
@@ -110,13 +106,12 @@ def run_workflow():
         name = get_row_value(row, ['Produktnamn', 'Name', 'Tittel', 'Produktnavn'])
         category = get_row_value(row, ['Kategori namn', 'Category', 'Kategori'])
         
+        # Prices are already in SEK from DCS account default settings
         price_raw = get_row_value(row, ['Pris', 'Price', 'pris'])
         try:
-            price_dkk = float(price_raw.replace(',', '.'))
+            price_sek = float(price_raw.replace(',', '.'))
         except ValueError:
             continue
-
-        price_sek = price_dkk * DKK_TO_SEK_RATE
 
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
