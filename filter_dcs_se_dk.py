@@ -1,13 +1,8 @@
 import csv
 import requests
-from requests.auth import HTTPBasicAuth
 
-# Official DCS API credentials
-CUSTOMER_NUMBER = "736729299"
-API_KEY = "Z3M1UGV3V0JLcnJbwhoQ01xZFBpVEdi"
-
-# DCS price/stock feed endpoint (or XML/API source URL)
-DCS_LIVE_URL = f"https://dcs.dk/pricelist?kundenummer={CUSTOMER_NUMBER}&type=145501807be2cac040288d2b3285684ae47940"
+# Your working DCS feed URL
+DCS_LIVE_URL = "https://dcs.dk/pricelist?kundenummer=Shymon%20Uzzman&type=145501807be2cac040288d2b3285684ae47940"
 
 DKK_TO_SEK_RATE = 1.55
 MAX_PRICE_SEK = 1300
@@ -24,7 +19,7 @@ def is_brand_new_sealed(name, condition_field=""):
     return not any(kw in text for kw in EXCLUDE_USED_KEYWORDS)
 
 def parse_immediate_stock(row):
-    raw_status = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', row.get('Stock', ''))).strip()
+    raw_status = str(row.get('Lagerstatus [ja eller förväntad leveranstid]', '')).strip()
     status_lower = raw_status.lower()
     
     if any(future_kw in status_lower for future_kw in ['leveranstid', 'förväntad', 'incoming', 'delivery', 'forventet', 'bestilt']):
@@ -40,35 +35,29 @@ def parse_immediate_stock(row):
     return 0
 
 def run_workflow():
-    print("🚀 Connecting to DCS API/Pricelist with official credentials...")
-    
-    # Authenticate using your customer number and API key
-    res = requests.get(DCS_LIVE_URL, auth=HTTPBasicAuth(CUSTOMER_NUMBER, API_KEY))
+    print("🚀 Connecting to DCS live feed...")
+    res = requests.get(DCS_LIVE_URL)
     res.raise_for_status()
     
     lines = res.text.splitlines()
-    if not lines:
-        print("❌ Error: Received empty feed from DCS.")
-        return
-
     delimiter = ';' if ';' in lines[0] else '\t'
     reader = list(csv.DictReader(lines, delimiter=delimiter))
     
-    print(f"📊 Total items in raw feed: {len(reader)}")
+    print(f"📊 Total items in feed: {len(reader)}")
 
     products = []
     for row in reader:
         stock_qty = parse_immediate_stock(row)
         
-        # Exact field lookups for SKU / Product Number
+        # 1. Clean SKU / Product Number
         sku = ""
-        for k in ['PRODUCT NUMBER', 'Produktnummer', 'SKU', 'Varenummer', 'ItemNo', 'sku']:
+        for k in ['PRODUCT NUMBER', 'Produktnummer', 'SKU', 'Varenummer', 'ItemNo']:
             val = str(row.get(k, '')).strip()
             if val:
                 sku = val
                 break
 
-        # Exact field lookups for EAN / Barcode
+        # 2. Clean EAN (Look specifically for barcode fields, fallback to SKU if none)
         ean = ""
         for k in ['EAN', 'Ean', 'ean', 'GTIN', 'Strekkode', 'BarCode', 'EAN13']:
             val = str(row.get(k, '')).strip()
@@ -76,27 +65,27 @@ def run_workflow():
                 ean = val
                 break
         if not ean:
-            ean = sku # Fallback to SKU if no separate EAN barcode is present
+            ean = sku
 
-        # Exact field lookups for Product Name
+        # 3. Product Name
         name = ""
-        for k in ['Produktnamn', 'Name', 'Tittel', 'Produktnavn', 'name']:
+        for k in ['Produktnamn', 'Name', 'Tittel', 'Produktnavn']:
             val = str(row.get(k, '')).strip()
             if val:
                 name = val
                 break
 
-        # Category
+        # 4. Category
         category = ""
-        for k in ['Kategori namn', 'Category', 'Kategori', 'category']:
+        for k in ['Kategori namn', 'Category', 'Kategori']:
             val = str(row.get(k, '')).strip()
             if val:
                 category = val
                 break
         
-        # Price
+        # 5. Price
         price_raw = '0'
-        for k in ['Pris', 'Price', 'price_sek', 'pris']:
+        for k in ['Pris', 'Price', 'pris']:
             if row.get(k):
                 price_raw = str(row.get(k))
                 break
@@ -108,7 +97,7 @@ def run_workflow():
 
         price_sek = price_dkk * DKK_TO_SEK_RATE
 
-        # Apply constraints: Stock, Max Price, Brand New, Tax-safe
+        # Apply Filters
         if stock_qty < MIN_STOCK or price_sek >= MAX_PRICE_SEK or price_sek == 0:
             continue
             
@@ -120,29 +109,8 @@ def run_workflow():
         if not any(kw in text_check for kw in TAX_SAFE_KEYWORDS):
             continue
 
-        # Clean Description & Specifications compilation
-        desc_lines = [f"<h3>{name}</h3>"]
-        if category:
-            desc_lines.append(f"<p><b>Kategori:</b> {category}</p>")
-        
-        specs_lines = ["<br><b>Spesifikasjoner:</b><ul>"]
-        has_specs = False
-        skip_keys = {'Produktnamn', 'Kategori namn', 'Pris', 'Price', 'Produktnummer', 'SKU', 'Lagerstatus [ja eller förväntad leveranstid]', 'image', 'bilde', 'ean', 'EAN'}
-        
-        for key, val in row.items():
-            if not key or not val:
-                continue
-            if any(skip in key for skip in skip_keys):
-                continue
-            val_str = str(val).strip()
-            if val_str and val_str.lower() != 'none':
-                specs_lines.append(f"<li><b>{key}:</b> {val_str}</li>")
-                has_specs = True
-        specs_lines.append("</ul>")
-        
-        if has_specs:
-            desc_lines.extend(specs_lines)
-        description = "".join(desc_lines)
+        # Clean Description (Avoid messy raw key dumps, keep it professional)
+        description = f"<h3>{name}</h3><p><b>Kategori:</b> {category}</p><p>Helt ny og uåpnet produkt med rask levering fra lager i Skandinavia.</p>"
 
         # Image collection
         urls = []
@@ -186,7 +154,7 @@ def run_workflow():
         writer.writeheader()
         writer.writerows(products)
         
-    print(f"✅ Successfully created dcs_filtered_se_dk.csv with {len(products)} authenticated products.")
+    print(f"✅ Successfully created dcs_filtered_se_dk.csv with {len(products)} products.")
 
 if __name__ == '__main__':
     run_workflow()
