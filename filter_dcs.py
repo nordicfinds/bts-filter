@@ -15,50 +15,28 @@ response.raise_for_status()
 df = pd.read_csv(io.StringIO(response.text), sep=';', quotechar='"')
 df.columns = df.columns.str.strip()
 
-# Print columns to GitHub logs so we can see exact naming if needed
-print("Available columns in DCS feed:", df.columns.tolist())
-
-# 3. Find Stock Column dynamically (handles 'Stock', 'Lager', 'Antal', etc.)
-stock_col = None
-for col in df.columns:
-    if 'stock' in col.lower() or 'lager' in col.lower() or 'antal' in col.lower():
-        stock_col = col
-        break
-
-if not stock_col:
-    raise ValueError(f"Could not find stock column in feed. Available columns: {df.columns.tolist()}")
-
-df['Stock'] = pd.to_numeric(df[stock_col], errors='coerce').fillna(0)
-
-# 4. Find Stock Status Column dynamically
-status_col = None
-for col in df.columns:
-    if 'status' in col.lower() or 'delivery' in col.lower():
-        status_col = col
-        break
-
+# 3. Filter Stock & Availability
+df['Stock'] = pd.to_numeric(df['Beholdning'], errors='coerce').fillna(0)
 df = df[df['Stock'] >= 5]
-if status_col:
-    df = df[df[status_col].astype(str).str.lower().str.contains('yes|ja', na=False)]
+df = df[df['Lagerstatus [Ja Lager eller leveringstiden for varen]'].astype(str).str.lower().str.contains('ja|yes', na=False)]
+df = df.dropna(subset=['EAN nummer', 'Varenummer'])
 
-df = df.dropna(subset=['EAN number', 'Product number'])
-
-# 5. Filter Brand New Items Only (Exclude Pre-owned / Refurbished)
+# 4. Filter Brand New Items Only (Exclude Pre-owned / Refurbished)
 excluded_terms = ['preowned', 'refurbished', 't1a', 'used', 'sekunda']
 pattern = '|'.join(excluded_terms)
 
-df = df[~df['Brand'].str.lower().str.contains(pattern, na=False)]
-df = df[~df['Name'].str.lower().str.contains(pattern, na=False)]
+df = df[~df['Producentnavn'].astype(str).str.lower().str.contains(pattern, na=False)]
+df = df[~df['Varenavn'].astype(str).str.lower().str.contains(pattern, na=False)]
 
-# 6. Target Core Brands
+# 5. Target Core Brands
 target_brands = [
     'apple', 'samsung', 'philips', 'panzerglass', 'sony', 'dudao', 
     'bose', 'logitech', 'sandisk', 'kingston technology', 'jabra', 
     'google', 'microsoft', 'msi', 'gigabyte technology', 'asrock', 'innovision multimedia'
 ]
-df = df[df['Brand'].str.lower().isin(target_brands)]
+df = df[df['Producentnavn'].astype(str).str.lower().isin(target_brands)]
 
-# 7. Swedish Chemical Tax Avoidance (Product Category Keywords)
+# 6. Swedish Chemical Tax Avoidance (Product Category Keywords)
 safe_keywords = [
     'glass', 'protector', 'screen', 'cover', 'case', 'sleeve', 'pouch', 'wallet',
     'charger', 'powerbank', 'magsafe', 'adapter', 'dock', 'cable', 'holder', 'mount', 'stand',
@@ -69,14 +47,14 @@ safe_keywords = [
 ]
 safe_pattern = '|'.join(safe_keywords)
 
-df_se = df[df['Name'].str.lower().str.contains(safe_pattern, na=False)].copy()
+df_se = df[df['Varenavn'].astype(str).str.lower().str.contains(safe_pattern, na=False)].copy()
 df_dk = df.copy()
 
-# 8. Sort by Highest Stock & Limit to Top 200 Maximum per Market
+# 7. Sort by Highest Stock & Limit to Top 200 Maximum per Market
 df_se = df_se.sort_values(by='Stock', ascending=False).head(200)
 df_dk = df_dk.sort_values(by='Stock', ascending=False).head(200)
 
-# 9. Save CSV Outputs
+# 8. Save CSV Outputs (Keeping raw wholesale 'Pris' in SEK for BaseLinker)
 df_se.to_csv('dcs_filtered_se.csv', sep=';', index=False)
 df_dk.to_csv('dcs_filtered_dk.csv', sep=';', index=False)
 
