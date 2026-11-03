@@ -60,7 +60,7 @@ df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(safe_patter
 # 7. Sort by Highest Stock Depth & Limit to Top 200 Items Maximum
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(200)
 
-# 8. Save ONE single master file for both markets
+# 8. Save ONE single master file for BaseLinker
 df_final.to_csv('dcs_filtered.csv', sep=';', index=False)
 
 print(f"Sync finished successfully. Master catalog updated with {len(df_final)} items.")
