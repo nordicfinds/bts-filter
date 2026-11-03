@@ -1,0 +1,41 @@
+name: DCS Tech Catalog Sync
+
+on:
+  schedule:
+    # Runs every 6 hours automatically
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-dcs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install requests pandas
+
+      - name: Run DCS Product Filter
+        env:
+          DCS_FEED_URL: "https://dcs.dk/pricelist?kundenummer=Shymon%20Uzzman&type=145501b95430d58794cf995b683fd7eef9a976"
+        run: python filter_dcs.py
+
+      - name: Commit Filtered CSVs
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git add dcs_filtered_se.csv dcs_filtered_dk.csv
+          git commit -m "Automated DCS catalog update for SE and DK" || exit 0
+          git push
