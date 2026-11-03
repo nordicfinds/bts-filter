@@ -54,14 +54,14 @@ df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(safe_patter
 # 7. Sort by Stock Depth & Limit to Top 200 Items
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(200).copy()
 
-# 8. Scrape Full-Resolution Images (Strictly from Product Pages)
+# 8. Scrape Images Strictly from the Product's Main Gallery
 def clean_image_url(url):
     """Strip thumbnail cache paths to force full-resolution images."""
     if not url:
         return ''
     return url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
 
-def get_all_product_images(row):
+def get_product_gallery_images(row):
     product_link = row.get('Produkt link', '')
     images = []
     
@@ -70,9 +70,19 @@ def get_all_product_images(row):
             res = requests.get(product_link, timeout=5)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
-                img_tags = soup.find_all('img', src=lambda s: s and '/upload/products/' in s)
+                
+                # Look specifically for gallery or main image containers first
+                gallery = soup.find('div', class_=lambda c: c and ('gallery' in c.lower() or 'image' in c.lower() or 'slider' in c.lower()))
+                
+                # If a specific gallery container is found, search only inside it; otherwise fall back to the main body
+                search_scope = gallery if gallery else soup
+                
+                img_tags = search_scope.find_all('img', src=lambda s: s and '/upload/products/' in s)
                 for img in img_tags:
                     src = img.get('src', '')
+                    # Skip tiny icons, avatars, or brand logos if any exist
+                    if 'brand' in src.lower() or 'logo' in src.lower():
+                        continue
                     full_url = src if src.startswith('http') else f"https://dcs.dk{src}"
                     cleaned_url = clean_image_url(full_url)
                     if cleaned_url and cleaned_url not in images:
@@ -82,10 +92,10 @@ def get_all_product_images(row):
             
     return images
 
-print("Scraping verified full-resolution product images...")
+print("Scraping strict product gallery images...")
 rows = df_final.to_dict('records')
 with ThreadPoolExecutor(max_workers=10) as executor:
-    all_images = list(executor.map(get_all_product_images, rows))
+    all_images = list(executor.map(get_product_gallery_images, rows))
 
 # Assign extracted images across 16 separate image columns for BaseLinker
 for i in range(16):
