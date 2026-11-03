@@ -60,8 +60,7 @@ df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(safe_patter
 # 7. Sort by Highest Stock Depth & Limit to Top 200 Items Maximum
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(200)
 
-# 8. Save the EXACT SAME 200 items to both SE and DK CSV files (Raw SEK wholesale price passed for BaseLinker)
-df_final.to_csv('dcs_filtered_se.csv', sep=';', index=False)
-df_final.to_csv('dcs_filtered_dk.csv', sep=';', index=False)
+# 8. Save ONE single master file for both markets
+df_final.to_csv('dcs_filtered.csv', sep=';', index=False)
 
-print(f"Sync finished successfully. Both SE and DK files updated with {len(df_final)} identical items.")
+print(f"Sync finished successfully. Master catalog updated with {len(df_final)} items.")
