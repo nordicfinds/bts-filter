@@ -2,12 +2,16 @@ name: DCS Tech Catalog Sync
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Runs every 6 hours
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   sync-dcs:
     runs-on: ubuntu-latest
+    
+    # Add this permissions block so the bot is allowed to push
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -35,4 +39,5 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add dcs_filtered.csv
           git commit -m "Automated DCS master catalog update" || exit 0
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/nordicfinds/bts-filter.git
           git push
