@@ -54,7 +54,7 @@ df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(safe_patter
 # 7. Sort by Stock Depth & Limit to Top 200 Items
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(200).copy()
 
-# 8. Scrape & Convert Images to Full-Resolution
+# 8. Scrape Full-Resolution Images (Strictly from Product Pages)
 def clean_image_url(url):
     """Strip thumbnail cache paths to force full-resolution images."""
     if not url:
@@ -63,7 +63,6 @@ def clean_image_url(url):
 
 def get_all_product_images(row):
     product_link = row.get('Produkt link', '')
-    item_id = str(row.get('Varenummer', '')).strip()
     images = []
     
     if isinstance(product_link, str) and product_link.startswith('http'):
@@ -81,13 +80,9 @@ def get_all_product_images(row):
         except Exception:
             pass
             
-    # Fallback for missing images using direct product upload path
-    if not images and item_id:
-        images.append(f"https://dcs.dk/upload/products/{item_id}.jpg")
-        
     return images
 
-print("Scraping all full-resolution product images...")
+print("Scraping verified full-resolution product images...")
 rows = df_final.to_dict('records')
 with ThreadPoolExecutor(max_workers=10) as executor:
     all_images = list(executor.map(get_all_product_images, rows))
@@ -99,4 +94,4 @@ for i in range(16):
 
 # 9. Save Master File
 df_final.to_csv('dcs_filtered.csv', sep=';', index=False)
-print(f"Sync finished successfully. Master catalog updated with {len(df_final)} items and 16 image columns.")
+print(f"Sync finished successfully. Master catalog updated with {len(df_final)} items.")
