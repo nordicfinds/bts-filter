@@ -37,16 +37,16 @@ target_brands = [
 ]
 df = df[df['Producentnavn'].astype(str).str.lower().isin(target_brands)]
 
-# 6. Audio & Headphone Specific Keywords Filter
+# 6. Strict Audio & Headphone Keywords Filter (Excluding wired cables/headphones)
 audio_keywords = [
-    'earbud', 'earphone', 'headphone', 'headset', 'speaker', 'airpods', 'buds'
+    'earbud', 'earphones', 'headphone', 'headsets', 'airpods', 'buds', 'tws', 'wireless'
 ]
 audio_pattern = '|'.join(audio_keywords)
 
 df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(audio_pattern, na=False)].copy()
+df_filtered = df_filtered[~df_filtered['Varenavn'].astype(str).str.lower().str.contains('kablet|cable|adapter', na=False)]
 
-# 7. Price Ceiling Filter (Max 2000)
-# Clean and convert price column to numeric (assuming column name is 'Pris' or similar)
+# 7. Price Ceiling Filter (Max 2000 SEK)
 price_col = next((col for col in df_filtered.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
 df_filtered['Parsed_Price'] = pd.to_numeric(df_filtered[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
 df_filtered = df_filtered[df_filtered['Parsed_Price'] <= 2000]
@@ -54,7 +54,7 @@ df_filtered = df_filtered[df_filtered['Parsed_Price'] <= 2000]
 # 8. Sort by Stock Depth & Limit to Top 40 Audio Items
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(40).copy()
 
-# 9. Extract Images via JSON / Script Parsers & Fallback ID Patterns
+# 9. Original Working Image Extractor Logic
 def get_images(row):
     product_link = row.get('Produkt link', '')
     item_id = str(row.get('Varenummer', '')).strip()
