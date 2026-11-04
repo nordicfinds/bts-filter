@@ -57,10 +57,9 @@ df_filtered = df_filtered[df_filtered['Parsed_Price'] <= 2000]
 # 8. Sort by Stock Depth & Limit to Top 30 Popular Mounts & Storage Items
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(30).copy()
 
-# 9. Working Image Extractor Logic
+# 9. Robust Image Extractor Logic (No broken 404 fallbacks)
 def get_images(row):
     product_link = row.get('Produkt link', '')
-    item_id = str(row.get('Varenummer', '')).strip()
     images = []
     
     if isinstance(product_link, str) and product_link.startswith('http'):
@@ -95,10 +94,6 @@ def get_images(row):
         except Exception:
             pass
             
-    # Fallback to direct item ID pattern if page scraping yielded nothing
-    if not images and item_id:
-        images.append(f"https://dcs.dk/upload/products/{item_id}.jpg")
-        
     return images
 
 print("Extracting high-resolution images for Mounts & Storage (Top 30)...")
