@@ -43,13 +43,18 @@ jobs:
 
       - name: Run Screen Protection
         env:
-          DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
+          DCS_FEED_URL: ${{ secrets.DNS_FEED_URL || secrets.DCS_FEED_URL }}
         run: python screen_protection.py
 
       - name: Run Mounts & Storage
         env:
           DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
         run: python mounts_storage.py
+
+      - name: Run Personal Care Electronics
+        env:
+          DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
+        run: python personal_care_electronics.py
 
       - name: Commit Filtered CSVs
         run: |
