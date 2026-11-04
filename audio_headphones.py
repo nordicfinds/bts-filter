@@ -31,30 +31,27 @@ pattern = '|'.join(excluded_terms)
 df = df[~df['Producentnavn'].astype(str).str.lower().str.contains(pattern, na=False)]
 df = df[~df['Varenavn'].astype(str).str.lower().str.contains(pattern, na=False)]
 
-# 5. Target Audio & Tech Brands Whitelist
-target_brands = [
-    'sony', 'bose', 'jabra', 'philips', 'apple', 'samsung', 'logitech', 'dudao'
-]
-df = df[df['Producentnavn'].astype(str).str.lower().isin(target_brands)]
-
-# 6. Strict Audio & Headphone Keywords Filter (Excluding wired cables/headphones)
+# 5. STRICT AUDIO KEYWORD FILTER (Must match product name to be true audio gear)
 audio_keywords = [
-    'earbud', 'earphones', 'headphone', 'headsets', 'airpods', 'buds', 'tws', 'wireless'
+    'headphone', 'headphones', 'headset', 'headsets', 'earbud', 'earbuds', 
+    'earphone', 'earphones', 'airpods', 'buds', 'speaker', 'speakers', 'soundbar', 'tws'
 ]
 audio_pattern = '|'.join(audio_keywords)
 
 df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(audio_pattern, na=False)].copy()
-df_filtered = df_filtered[~df_filtered['Varenavn'].astype(str).str.lower().str.contains('kablet|cable|adapter', na=False)]
 
-# 7. Price Ceiling Filter (Max 2000 SEK)
+# Exclude non-audio items or wired cables that might have matched accidentally
+df_filtered = df_filtered[~df_filtered['Varenavn'].astype(str).str.lower().str.contains('kablet|cable|adapter|keyboard|tastatur|mouse|mus|presenter|powerbank|charger', na=False)]
+
+# 6. Price Ceiling Filter (Max 2000 SEK)
 price_col = next((col for col in df_filtered.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
 df_filtered['Parsed_Price'] = pd.to_numeric(df_filtered[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
 df_filtered = df_filtered[df_filtered['Parsed_Price'] <= 2000]
 
-# 8. Sort by Stock Depth & Limit to Top 40 Audio Items
+# 7. Sort by Stock Depth & Limit to Top 40 Audio Items
 df_final = df_filtered.sort_values(by='Stock', ascending=False).head(40).copy()
 
-# 9. Original Working Image Extractor Logic
+# 8. Image Extractor Logic
 def get_images(row):
     product_link = row.get('Produkt link', '')
     item_id = str(row.get('Varenummer', '')).strip()
@@ -98,7 +95,7 @@ def get_images(row):
         
     return images
 
-print("Extracting high-resolution images for Audio & Headphones (Top 40)...")
+print("Extracting high-resolution images for True Audio & Headphones (Top 40)...")
 rows = df_final.to_dict('records')
 with ThreadPoolExecutor(max_workers=10) as executor:
     all_images = list(executor.map(get_images, rows))
@@ -108,7 +105,7 @@ for i in range(16):
     col_name = f'Image_URL_{i+1}'
     df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
 
-# 10. Save Category File
+# 9. Save Category File
 output_filename = 'audio_headphones.csv'
 df_final.to_csv(output_filename, sep=';', index=False)
-print(f"Sync finished successfully. {output_filename} updated with {len(df_final)} items.")
+print(f"Sync finished successfully. {output_filename} updated with {len(df_final)} true audio items.")
