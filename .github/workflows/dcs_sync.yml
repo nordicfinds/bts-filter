@@ -26,17 +26,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas requests beautifulsoup4
 
-      - name: Run DCS Product Filter
+      - name: Run Chargers & Cables
         env:
           DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
-        run: |
-          python filter_dcs.py
+        run: python chargers_cables.py
 
-      - name: Commit Filtered CSV
+      - name: Run Audio & Headphones
+        env:
+          DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
+        run: python audio_headphones.py
+
+      - name: Run Gaming & Consoles
+        env:
+          DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
+        run: python gaming_consoles.py
+
+      - name: Run Screen Protection
+        env:
+          DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
+        run: python screen_protection.py
+
+      - name: Run Mounts & Storage
+        env:
+          DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
+        run: python mounts_storage.py
+
+      - name: Commit Filtered CSVs
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add dcs_filtered.csv
-          git commit -m "Automated DCS master catalog update with multi-image URLs" || exit 0
+          git add *.csv
+          git commit -m "Automated multi-category DCS catalog update" || exit 0
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/nordicfinds/bts-filter.git
           git push
