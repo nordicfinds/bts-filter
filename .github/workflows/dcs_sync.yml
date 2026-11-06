@@ -2,7 +2,7 @@ name: DCS Tech Catalog Sync
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */3 * * *'
   workflow_dispatch:
 
 jobs:
@@ -56,10 +56,32 @@ jobs:
           DCS_FEED_URL: ${{ secrets.DCS_FEED_URL }}
         run: python personal_care_electronics.py
 
-      - name: Commit Filtered CSVs
+      - name: Combine 6 DCS CSVs into Master Catalog
+        run: |
+          python -c "
+          import pandas as pd
+          import os
+
+          dcs_files = [
+              'chargers_cables.csv',
+              'audio_headphones.csv',
+              'gaming_consoles.csv',
+              'screen_protection.csv',
+              'mounts_storage.csv',
+              'personal_care.csv'
+          ]
+
+          df_list = [pd.read_csv(f) for f in dcs_files if os.path.exists(f)]
+          if df_list:
+              master_df = pd.concat(df_list, ignore_index=True)
+              master_df.to_csv('master_catalog.csv', index=False)
+              print('Successfully generated master_catalog.csv with', len(master_df), 'items')
+          "
+
+      - name: Commit Filtered CSVs & Master Catalog
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add *.csv
-          git diff-index --quiet HEAD || git commit -m "Automated multi-category DCS catalog update"
+          git add master_catalog.csv *.csv
+          git diff-index --quiet HEAD || git commit -m "Automated multi-category DCS catalog update and master merge"
           git push
