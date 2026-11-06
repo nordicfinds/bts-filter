@@ -71,11 +71,22 @@ jobs:
               'personal_care.csv'
           ]
 
-          df_list = [pd.read_csv(f) for f in dcs_files if os.path.exists(f)]
+          df_list = []
+          for f in dcs_files:
+              if os.path.exists(f):
+                  try:
+                      df = pd.read_csv(f, on_bad_lines='skip')
+                      if not df.empty:
+                          df_list.append(df)
+                  except Exception as e:
+                      print(f'Skipping {f} due to error: {e}')
+
           if df_list:
               master_df = pd.concat(df_list, ignore_index=True)
               master_df.to_csv('master_catalog.csv', index=False)
               print('Successfully generated master_catalog.csv with', len(master_df), 'items')
+          else:
+              print('No valid CSV data found to merge.')
           "
 
       - name: Commit Filtered CSVs & Master Catalog
