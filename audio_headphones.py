@@ -1,11 +1,7 @@
 import os
 import io
-import time
-import re
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
 
 # 1. Fetch DCS Feed
 feed_url = os.environ.get("DCS_FEED_URL")
@@ -53,60 +49,23 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 # Final clean dataset (drops temporary processing column)
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Robust Multi-Image Extractor for Nested Paths
-def get_images(row):
-    product_link = row.get('Produkt link', '')
-    item_id = str(row.get('Varenummer', '')).strip()
-    images = []
-    
-    if isinstance(product_link, str) and product_link.startswith('http'):
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-            res = requests.get(product_link, headers=headers, timeout=10)
-            time.sleep(0.2)
-            
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'html.parser')
-                
-                # Find main product gallery container first to avoid related product images
-                gallery = soup.find('div', class_=lambda c: c and ('gallery' in c.lower() or 'image' in c.lower() or 'product-img' in c.lower()))
-                search_scope = str(gallery) if gallery else res.text
-                
-                # Extract all nested paths containing subdirectories (e.g. /upload/products/XX/YYYYYYY/filename.jpg)
-                found_links = re.findall(r'\/upload\/products\/\d+\/\d+[\/a-zA-Z0-9_\-]+\.(?:jpg|jpeg|png)', search_scope)
-                
-                for f in found_links:
-                    full_url = f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
-                    cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                    if cleaned not in images:
-                        images.append(cleaned)
-                        
-                # Fallback scan of img tags if gallery scope was too restrictive
-                if not images:
-                    for img in soup.find_all('img', src=lambda s: s and '/upload/products/' in s):
-                        src = img.get('src', '')
-                        if 'brand' in src.lower() or 'logo' in src.lower() or 'cache' in src.lower():
-                            continue
-                        full_url = src if src.startswith('http') else f"https://dcs.dk{src}"
-                        cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                        if cleaned not in images:
-                            images.append(cleaned)
-        except Exception:
-            pass
-            
-    return images
+# 6. Extract direct image columns from feed if available, or build standard item ID image URL
+image_col = next((col for col in df_final.columns if 'billede' in col.lower() or 'image' in col.lower() or 'foto' in col.lower()), None)
 
-print(f"Extracting valid gallery images for whitelisted Headphones & Earphones ({len(df_final)} items with >=5 stock)...")
-rows = df_final.to_dict('records')
-with ThreadPoolExecutor(max_workers=5) as executor:
-    all_images = list(executor.map(get_images, rows))
-
-# Assign extracted images across 16 separate image columns
 for i in range(16):
     col_name = f'Image_URL_{i+1}'
-    df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
+    if i == 0 and image_col:
+        # Use primary image link from feed
+        df_final[col_name] = df_final[image_col].fillna('')
+    else:
+        # For additional slots, construct direct item ID pattern or leave blank
+        df_final[col_name] = ''
+
+# For rows where image column might be empty, fallback to standard Varenummer image format
+for idx, row in df_final.iterrows():
+    item_id = str(row.get('Varenummer', '')).strip()
+    if item_id and not df_final.loc[idx, 'Image_URL_1']:
+        df_final.loc[idx, 'Image_URL_1'] = f"https://dcs.dk/upload/products/{item_id}.jpg"
 
 # 7. Save Output File
 output_filename = 'audio_headphones.csv'
