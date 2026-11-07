@@ -50,14 +50,15 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Authenticated Scraper Session to bypass 404 login wall
+# 6. Authenticated Scraper Session
 session = requests.Session()
-# Establish session cookies by hitting the main catalog site first
 session.get("https://dcs.dk/", headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+
+debug_logs = []
 
 def get_images(row):
     product_link = row.get('Produkt link', '')
-    item_id = str(row.get('Varenummer', '')).strip()
+    item_name = row.get('Varenavn', 'Unknown')
     images = []
     
     if isinstance(product_link, str) and product_link.startswith('http'):
@@ -67,11 +68,12 @@ def get_images(row):
                 'Referer': 'https://dcs.dk/'
             }
             res = session.get(product_link, headers=headers, timeout=10)
+            debug_logs.append(f"Item: {item_name} | Status: {res.status_code} | Link: {product_link}")
             
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
-                # Extract image paths from script elements
+                # Scan script elements
                 scripts = soup.find_all('script')
                 for script in scripts:
                     if script.string and '/upload/products/' in script.string:
@@ -82,7 +84,7 @@ def get_images(row):
                             if cleaned not in images:
                                 images.append(cleaned)
                 
-                # Fallback to img tags if scripts didn't catch them
+                # Fallback to img tags
                 if not images:
                     img_tags = soup.find_all('img', src=lambda s: s and '/upload/products/' in s)
                     for img in img_tags:
@@ -93,17 +95,21 @@ def get_images(row):
                         cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
                         if cleaned not in images:
                             images.append(cleaned)
-        except Exception:
-            pass
+        except Exception as e:
+            debug_logs.append(f"Error scraping {product_link}: {str(e)}")
             
     return images
 
-print("Extracting authenticated high-resolution images for Audio & Headphones...")
+print("Extracting images...")
 rows = df_final.to_dict('records')
 with ThreadPoolExecutor(max_workers=5) as executor:
     all_images = list(executor.map(get_images, rows))
 
-# Assign extracted images across 16 separate image columns for BaseLinker
+# Write debug log to file so we can inspect it in GitHub
+with open('scraper_debug.txt', 'w', encoding='utf-8') as f:
+    f.write("\n".join(debug_logs))
+
+# Assign extracted images across 16 separate image columns (NO broken flat fallback)
 for i in range(16):
     col_name = f'Image_URL_{i+1}'
     df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
