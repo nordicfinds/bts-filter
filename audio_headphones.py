@@ -1,10 +1,7 @@
 import os
 import io
-import re
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor
 
 # 1. Fetch DCS Feed
 feed_url = os.environ.get("DCS_FEED_URL")
@@ -50,61 +47,16 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Robust Scraper with Headers + Fallback
-def get_images(row):
-    product_link = row.get('Produkt link', '')
-    item_id = str(row.get('Varenummer', '')).strip()
-    images = []
-    
-    if isinstance(product_link, str) and product_link.startswith('http'):
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-            res = requests.get(product_link, headers=headers, timeout=8)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'html.parser')
-                
-                # Scan script tags
-                scripts = soup.find_all('script')
-                for script in scripts:
-                    if script.string and '/upload/products/' in script.string:
-                        found = re.findall(r'\/upload\/products\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png)', script.string)
-                        for f in found:
-                            full_url = f.startswith('http') and f or f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
-                            cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                            if cleaned not in images:
-                                images.append(cleaned)
-                
-                # Fallback to img tags
-                if not images:
-                    img_tags = soup.find_all('img', src=lambda s: s and '/upload/products/' in s)
-                    for img in img_tags:
-                        src = img.get('src', '')
-                        if 'brand' in src.lower() or 'logo' in src.lower():
-                            continue
-                        full_url = src if src.startswith('http') else f"https://dcs.dk{src}"
-                        cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                        if cleaned not in images:
-                            images.append(cleaned)
-        except Exception:
-            pass
-            
-    # Absolute Fallback: if scraping yielded nothing, use standard item ID image pattern
-    if not images and item_id:
-        images.append(f"https://dcs.dk/upload/products/{item_id}.jpg")
-        
-    return images
-
-print("Extracting high-resolution images with fallback for Audio & Headphones...")
-rows = df_final.to_dict('records')
-with ThreadPoolExecutor(max_workers=5) as executor:
-    all_images = list(executor.map(get_images, rows))
-
-# Assign extracted images across 16 separate image columns for BaseLinker
+# 6. Direct Image Assignment using Item ID (Bypasses web blocking completely)
 for i in range(16):
     col_name = f'Image_URL_{i+1}'
-    df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
+    if i == 0:
+        # Populate Image_URL_1 with the direct product image pattern using Varenummer
+        df_final[col_name] = df_final['Varenummer'].astype(str).str.strip().apply(
+            lambda x: f"https://dcs.dk/upload/products/{x}.jpg" if x else ''
+        )
+    else:
+        df_final[col_name] = ''
 
 # 7. Save Output File
 output_filename = 'audio_headphones.csv'
