@@ -53,7 +53,7 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 # Final clean dataset (drops temporary processing column)
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Strict Item-ID Locked Image Extractor (Prevents Related-Product Mismatches)
+# 6. Robust Multi-Image Extractor for Nested Paths
 def get_images(row):
     product_link = row.get('Produkt link', '')
     item_id = str(row.get('Varenummer', '')).strip()
@@ -70,25 +70,35 @@ def get_images(row):
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
-                # Scan page specifically for image links containing this product's exact item_id
-                found_links = re.findall(r'\/upload\/products\/\d+\/\d+[\/a-zA-Z0-9_\-]+\.(?:jpg|jpeg|png)', res.text)
+                # Find main product gallery container first to avoid related product images
+                gallery = soup.find('div', class_=lambda c: c and ('gallery' in c.lower() or 'image' in c.lower() or 'product-img' in c.lower()))
+                search_scope = str(gallery) if gallery else res.text
+                
+                # Extract all nested paths containing subdirectories (e.g. /upload/products/XX/YYYYYYY/filename.jpg)
+                found_links = re.findall(r'\/upload\/products\/\d+\/\d+[\/a-zA-Z0-9_\-]+\.(?:jpg|jpeg|png)', search_scope)
+                
                 for f in found_links:
-                    # STRICT RULE: The image URL must contain this product's exact item_id
-                    if item_id and item_id in f:
-                        full_url = f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
+                    full_url = f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
+                    cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
+                    if cleaned not in images:
+                        images.append(cleaned)
+                        
+                # Fallback scan of img tags if gallery scope was too restrictive
+                if not images:
+                    for img in soup.find_all('img', src=lambda s: s and '/upload/products/' in s):
+                        src = img.get('src', '')
+                        if 'brand' in src.lower() or 'logo' in src.lower() or 'cache' in src.lower():
+                            continue
+                        full_url = src if src.startswith('http') else f"https://dcs.dk{src}"
                         cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
                         if cleaned not in images:
                             images.append(cleaned)
         except Exception:
             pass
             
-    # Fallback to direct item ID pattern if page scraping yielded nothing
-    if not images and item_id:
-        images.append(f"https://dcs.dk/upload/products/{item_id}.jpg")
-        
     return images
 
-print(f"Extracting strictly matched images for whitelisted Headphones & Earphones ({len(df_final)} items with >=5 stock)...")
+print(f"Extracting valid gallery images for whitelisted Headphones & Earphones ({len(df_final)} items with >=5 stock)...")
 rows = df_final.to_dict('records')
 with ThreadPoolExecutor(max_workers=5) as executor:
     all_images = list(executor.map(get_images, rows))
