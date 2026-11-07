@@ -53,7 +53,7 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 # Final clean dataset (drops temporary processing column)
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Precision Nested Image Extractor (Matches /upload/products/XX/YYYYYYY/ format)
+# 6. Strict Item-ID Locked Image Extractor (Prevents Related-Product Mismatches)
 def get_images(row):
     product_link = row.get('Produkt link', '')
     item_id = str(row.get('Varenummer', '')).strip()
@@ -70,23 +70,15 @@ def get_images(row):
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
-                # Search all attribute strings and scripts for the exact nested product path structure
-                for tag in soup.find_all(True):
-                    for attr, val in tag.attrs.items():
-                        if isinstance(val, str) and '/upload/products/' in val:
-                            if item_id in val or item_id == '': # Strict match to product ID to prevent cross-contamination
-                                cleaned_url = val if val.startswith('http') else f"https://dcs.dk{val if val.startswith('/') else '/' + val}"
-                                cleaned_url = cleaned_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                                if cleaned_url not in images and ('jpg' in cleaned_url or 'png' in cleaned_url):
-                                    images.append(cleaned_url)
-                                    
-                # Regex backup scan across entire page text for nested subfolders
+                # Scan page specifically for image links containing this product's exact item_id
                 found_links = re.findall(r'\/upload\/products\/\d+\/\d+[\/a-zA-Z0-9_\-]+\.(?:jpg|jpeg|png)', res.text)
                 for f in found_links:
-                    full_url = f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
-                    cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                    if cleaned not in images:
-                        images.append(cleaned)
+                    # STRICT RULE: The image URL must contain this product's exact item_id
+                    if item_id and item_id in f:
+                        full_url = f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
+                        cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
+                        if cleaned not in images:
+                            images.append(cleaned)
         except Exception:
             pass
             
@@ -96,7 +88,7 @@ def get_images(row):
         
     return images
 
-print(f"Extracting exact nested images for whitelisted Headphones & Earphones ({len(df_final)} items with >=5 stock)...")
+print(f"Extracting strictly matched images for whitelisted Headphones & Earphones ({len(df_final)} items with >=5 stock)...")
 rows = df_final.to_dict('records')
 with ThreadPoolExecutor(max_workers=5) as executor:
     all_images = list(executor.map(get_images, rows))
