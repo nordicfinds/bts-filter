@@ -31,13 +31,12 @@ TARGET_EANS = [
     "5706991022803", "5706991024302", "5706991023275", "8887910060117"
 ]
 
-# Standardize Whitelist list to 13 digits for precise alignment
 TARGET_EANS_CLEAN = [ean.strip().zfill(13) for ean in TARGET_EANS]
 
 # Filter catalog strictly by Whitelist
 df_whitelist = df[df['EAN_Clean'].isin(TARGET_EANS_CLEAN)].copy()
 
-# 4. Filter Stock & Availability (Minimum 5 stock, confirmed status)
+# 4. Filter Stock & Availability (Minimum 5 stock)
 df_whitelist['Stock'] = pd.to_numeric(df_whitelist['Beholdning'], errors='coerce').fillna(0)
 df_whitelist = df_whitelist[df_whitelist['Stock'] >= 5]
 df_whitelist = df_whitelist[df_whitelist['Lagerstatus [Ja Lager eller leveringstiden for varen]'].astype(str).str.lower().str.contains('ja|yes', na=False)]
@@ -46,22 +45,19 @@ df_whitelist = df_whitelist[df_whitelist['Lagerstatus [Ja Lager eller leveringst
 price_col = next((col for col in df_whitelist.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
 df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
 
-# Final clean dataset (drops temporary processing column)
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Extract direct image columns from feed if available, or build standard item ID image URL
+# 6. Safe Image Assignment using the feed's native image column if present
 image_col = next((col for col in df_final.columns if 'billede' in col.lower() or 'image' in col.lower() or 'foto' in col.lower()), None)
 
 for i in range(16):
     col_name = f'Image_URL_{i+1}'
     if i == 0 and image_col:
-        # Use primary image link from feed
         df_final[col_name] = df_final[image_col].fillna('')
     else:
-        # For additional slots, construct direct item ID pattern or leave blank
         df_final[col_name] = ''
 
-# For rows where image column might be empty, fallback to standard Varenummer image format
+# Fallback: construct safe image URLs using Varenummer for items missing a direct feed image
 for idx, row in df_final.iterrows():
     item_id = str(row.get('Varenummer', '')).strip()
     if item_id and not df_final.loc[idx, 'Image_URL_1']:
