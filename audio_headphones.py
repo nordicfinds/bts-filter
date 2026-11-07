@@ -50,18 +50,22 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Exact Image Extractor Logic from Gaming Script
+# 6. Robust Scraper with Headers + Fallback
 def get_images(row):
     product_link = row.get('Produkt link', '')
+    item_id = str(row.get('Varenummer', '')).strip()
     images = []
     
     if isinstance(product_link, str) and product_link.startswith('http'):
         try:
-            res = requests.get(product_link, timeout=5)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            res = requests.get(product_link, headers=headers, timeout=8)
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
-                # Method A: Look for script tags containing product image arrays
+                # Scan script tags
                 scripts = soup.find_all('script')
                 for script in scripts:
                     if script.string and '/upload/products/' in script.string:
@@ -72,7 +76,7 @@ def get_images(row):
                             if cleaned not in images:
                                 images.append(cleaned)
                 
-                # Method B: Standard image tags fallback
+                # Fallback to img tags
                 if not images:
                     img_tags = soup.find_all('img', src=lambda s: s and '/upload/products/' in s)
                     for img in img_tags:
@@ -86,11 +90,15 @@ def get_images(row):
         except Exception:
             pass
             
+    # Absolute Fallback: if scraping yielded nothing, use standard item ID image pattern
+    if not images and item_id:
+        images.append(f"https://dcs.dk/upload/products/{item_id}.jpg")
+        
     return images
 
-print("Extracting high-resolution images for Audio & Headphones...")
+print("Extracting high-resolution images with fallback for Audio & Headphones...")
 rows = df_final.to_dict('records')
-with ThreadPoolExecutor(max_workers=10) as executor:
+with ThreadPoolExecutor(max_workers=5) as executor:
     all_images = list(executor.map(get_images, rows))
 
 # Assign extracted images across 16 separate image columns for BaseLinker
