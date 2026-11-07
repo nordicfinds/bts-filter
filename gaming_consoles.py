@@ -21,7 +21,7 @@ df.columns = df.columns.str.strip()
 # Clean up EAN column values for exact matching
 df['EAN_Clean'] = df['EAN nummer'].astype(str).str.strip().str.zfill(13)
 
-# 3. Target Gaming EAN Whitelist (Raw inputs provided)
+# 3. Target Gaming EAN Whitelist
 RAW_TARGET_EANS = [
     "0045496453138", "0045496321444", "0196388421442", "711719577171", "0711719021711",
     "0711719022756", "0814585022803", "0711719374107", "0711719020905", "0045496430528",
@@ -50,7 +50,7 @@ df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str)
 
 df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-# 6. Authenticated Scraper Session (To pull high-resolution nested image paths)
+# 6. Authenticated Scraper Session
 session = requests.Session()
 session.get("https://dcs.dk/", headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
 
@@ -87,4 +87,26 @@ def get_images(row):
                         src = img.get('src', '')
                         if 'brand' in src.lower() or 'logo' in src.lower():
                             continue
-                        full_url = src if src.startswith('
+                        full_url = src if src.startswith('http') else f"https://dcs.dk{src}"
+                        cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
+                        if cleaned not in images:
+                            images.append(cleaned)
+        except Exception:
+            pass
+            
+    return images
+
+print("Extracting images for Gaming Consoles & Accessories...")
+rows = df_final.to_dict('records')
+with ThreadPoolExecutor(max_workers=5) as executor:
+    all_images = list(executor.map(get_images, rows))
+
+# Expand extracted image list into 16 individual URL columns for BaseLinker
+for i in range(16):
+    col_name = f'Image_URL_{i+1}'
+    df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
+
+# 7. Save Output File
+output_filename = 'gaming_consoles.csv'
+df_final.to_csv(output_filename, sep=';', index=False)
+print(f"Sync complete. {output_filename} generated with {len(df_final)} items.")
