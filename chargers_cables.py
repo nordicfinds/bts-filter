@@ -1,6 +1,6 @@
 import os
 import io
-import json
+import re
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -18,69 +18,63 @@ response.raise_for_status()
 df = pd.read_csv(io.StringIO(response.text), sep=';', quotechar='"')
 df.columns = df.columns.str.strip()
 
-# 3. Filter Stock & Availability (Minimum 5 stock, confirmed status)
-df['Stock'] = pd.to_numeric(df['Beholdning'], errors='coerce').fillna(0)
-df = df[df['Stock'] >= 5]
-df = df[df['Lagerstatus [Ja Lager eller leveringstiden for varen]'].astype(str).str.lower().str.contains('ja|yes', na=False)]
-df = df.dropna(subset=['EAN nummer', 'Varenummer'])
+# Clean up EAN column values for exact matching
+df['EAN_Clean'] = df['EAN nummer'].astype(str).str.strip().str.zfill(13)
 
-# 4. Filter Brand New Items Only
-excluded_terms = ['preowned', 'refurbished', 't1a', 'used', 'sekunda']
-pattern = '|'.join(excluded_terms)
-
-df = df[~df['Producentnavn'].astype(str).str.lower().str.contains(pattern, na=False)]
-df = df[~df['Varenavn'].astype(str).str.lower().str.contains(pattern, na=False)]
-
-# 5. Target Brands Whitelist
-target_brands = [
-    'apple', 'samsung', 'dudao', 'philips', 'sony', 'logitech', 'sandisk', 'kingston technology', 'jabra'
+# 3. Target Accessories, Chargers, Cables & Storage EAN Whitelist
+RAW_TARGET_EANS = [
+    "194252157022", "0195949121296", "0195950673982", "0195950084658", "0195949376733",
+    "8801643979393", "8806094912128", "6976625334919", "0197531544216", "8806094912029",
+    "8806094912081", "8806090973369", "8806090104527", "8806094911985", "8806095471761",
+    "0840353913776", "8801643979379", "8806092933996", "8806097735618", "8806090973338",
+    "8806092673885", "8806095720838", "8806092709904", "8806092709874", "0194252192467",
+    "0195949590580", "0195949590696", "6973687242985", "8806092978539", "6976625332595",
+    "6976625332618", "0195949371905", "0195949775390", "0195949093432", "0194252750872",
+    "194253939276", "0195949122880", "0195949085611", "0195949333989", "8806090545917",
+    "8806090545931"
 ]
-df = df[df['Producentnavn'].astype(str).str.lower().isin(target_brands)]
 
-# 6. Strict Chargers & Cables Keywords Filter
-cable_charger_keywords = [
-    'charger', 'chargers', 'powerbank', 'magsafe', 'adapter', 'adapters', 
-    'dock', 'cable', 'cables', 'lightning', 'usb-c', 'usb c', 'wall charger', 'wireless charger', 'fast charger'
-]
-cc_pattern = '|'.join(cable_charger_keywords)
+# Deduplicate entries while preserving padded 13-digit formatting
+TARGET_EANS_CLEAN = list(set([ean.strip().zfill(13) for ean in RAW_TARGET_EANS]))
+print(f"Loaded {len(RAW_TARGET_EANS)} raw EANs. Detected duplicates and filtered down to {len(TARGET_EANS_CLEAN)} unique items.")
 
-df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(cc_pattern, na=False)].copy()
+# Filter catalog strictly by Whitelist
+df_whitelist = df[df['EAN_Clean'].isin(TARGET_EANS_CLEAN)].copy()
 
-# Exclude screen protectors or non-charger items
-df_filtered = df_filtered[~df_filtered['Varenavn'].astype(str).str.lower().str.contains('glass|protector|screen|cover|case|headphone|earbud|speaker', na=False)]
+# 4. Filter Stock & Availability (Minimum 5 stock threshold)
+df_whitelist['Stock'] = pd.to_numeric(df_whitelist['Beholdning'], errors='coerce').fillna(0)
+df_whitelist = df_whitelist[df_whitelist['Stock'] >= 5]
+df_whitelist = df_whitelist[df_whitelist['Lagerstatus [Ja Lager eller leveringstiden for varen]'].astype(str).str.lower().str.contains('ja|yes', na=False)]
 
-# 7. Price Ceiling Filter (Max 2000 SEK)
-price_col = next((col for col in df_filtered.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
-df_filtered['Parsed_Price'] = pd.to_numeric(df_filtered[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
-df_filtered = df_filtered[df_filtered['Parsed_Price'] <= 2000]
+# 5. Parse Price column
+price_col = next((col for col in df_whitelist.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
+df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
 
-# 8. Split into Apple/Samsung Pool (25 items) and Other Brands Pool (25 items)
-is_apple_samsung = df_filtered['Producentnavn'].astype(str).str.lower().isin(['apple', 'samsung']) | \
-                   df_filtered['Varenavn'].astype(str).str.lower().str.contains('iphone|apple|samsung|galaxy', na=False)
+df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
 
-df_apple_samsung = df_filtered[is_apple_samsung].sort_values(by='Stock', ascending=False).head(25)
-df_others = df_filtered[~is_apple_samsung].sort_values(by='Stock', ascending=False).head(25)
+# 6. Authenticated Scraper Session
+session = requests.Session()
+session.get("https://dcs.dk/", headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
 
-# Combine to ensure exactly 50/50 balance (or max available)
-df_final = pd.concat([df_apple_samsung, df_others]).drop_duplicates(subset=['Varenummer']).copy()
-
-# 9. Working Image Extractor Logic
 def get_images(row):
     product_link = row.get('Produkt link', '')
-    item_id = str(row.get('Varenummer', '')).strip()
     images = []
     
     if isinstance(product_link, str) and product_link.startswith('http'):
         try:
-            res = requests.get(product_link, timeout=5)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://dcs.dk/'
+            }
+            res = session.get(product_link, headers=headers, timeout=10)
+            
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
-                # Method A: Look for script tags containing product image arrays
+                # Scan script elements for nested image subfolder paths
                 scripts = soup.find_all('script')
                 for script in scripts:
                     if script.string and '/upload/products/' in script.string:
-                        import re
                         found = re.findall(r'\/upload\/products\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png)', script.string)
                         for f in found:
                             full_url = f.startswith('http') and f or f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
@@ -88,7 +82,7 @@ def get_images(row):
                             if cleaned not in images:
                                 images.append(cleaned)
                 
-                # Method B: Standard image tags fallback
+                # Fallback to img tags if dynamic script extraction returns empty
                 if not images:
                     img_tags = soup.find_all('img', src=lambda s: s and '/upload/products/' in s)
                     for img in img_tags:
@@ -102,23 +96,19 @@ def get_images(row):
         except Exception:
             pass
             
-    # Fallback to direct item ID pattern if page scraping yielded nothing
-    if not images and item_id:
-        images.append(f"https://dcs.dk/upload/products/{item_id}.jpg")
-        
     return images
 
-print("Extracting high-resolution images for Chargers & Cables (50 items: 25 Apple/Samsung + 25 Others)...")
+print("Extracting images for Accessories, Chargers, and Cables...")
 rows = df_final.to_dict('records')
-with ThreadPoolExecutor(max_workers=10) as executor:
+with ThreadPoolExecutor(max_workers=5) as executor:
     all_images = list(executor.map(get_images, rows))
 
-# Assign extracted images across 16 separate image columns for BaseLinker
+# Expand extracted image list into 16 individual URL columns for BaseLinker
 for i in range(16):
     col_name = f'Image_URL_{i+1}'
     df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
 
-# 10. Save Category File
+# 7. Save Output File
 output_filename = 'chargers_cables.csv'
 df_final.to_csv(output_filename, sep=';', index=False)
-print(f"Sync finished successfully. {output_filename} updated with {len(df_final)} items.")
+print(f"Sync complete. {output_filename} generated with {len(df_final)} items.")
