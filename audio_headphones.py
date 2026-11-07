@@ -1,6 +1,7 @@
 import os
 import io
-import json
+import time
+import re
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -18,40 +19,41 @@ response.raise_for_status()
 df = pd.read_csv(io.StringIO(response.text), sep=';', quotechar='"')
 df.columns = df.columns.str.strip()
 
-# 3. Filter Stock & Availability (Minimum 5 stock, confirmed status)
-df['Stock'] = pd.to_numeric(df['Beholdning'], errors='coerce').fillna(0)
-df = df[df['Stock'] >= 5]
-df = df[df['Lagerstatus [Ja Lager eller leveringstiden for varen]'].astype(str).str.lower().str.contains('ja|yes', na=False)]
-df = df.dropna(subset=['EAN nummer', 'Varenummer'])
+# Clean up EAN column values for exact matching
+df['EAN_Clean'] = df['EAN nummer'].astype(str).str.strip().str.zfill(13)
 
-# 4. Filter Brand New Items Only
-excluded_terms = ['preowned', 'refurbished', 't1a', 'used', 'sekunda']
-pattern = '|'.join(excluded_terms)
-
-df = df[~df['Producentnavn'].astype(str).str.lower().str.contains(pattern, na=False)]
-df = df[~df['Varenavn'].astype(str).str.lower().str.contains(pattern, na=False)]
-
-# 5. STRICT AUDIO KEYWORD FILTER (Must match product name to be true audio gear)
-audio_keywords = [
-    'headphone', 'headphones', 'headset', 'headsets', 'earbud', 'earbuds', 
-    'earphone', 'earphones', 'airpods', 'buds', 'speaker', 'speakers', 'soundbar', 'tws'
+# 3. Target EAN Whitelist (45 Headphones & Earphones)
+TARGET_EANS = [
+    "0195950543742", "0195951378923", "0195949506123", "0195951378718", "0195949689567",
+    "0195949688485", "0190198001733", "0194252818527", "0190198107077", "0194253715122",
+    "0195949508967", "0194253715306", "0017817848961", "0017817849791", "0017817846172",
+    "0017817859639", "0017817859684", "0017817859738", "0017817861212", "0017817867009",
+    "0017817867016", "0017817860048", "0017817846912", "0017817853460", "0017817861120",
+    "0017817854726", "0017817860482", "8806097984832", "8806097985341", "8806090270123",
+    "8806090270062", "8806097621027", "4548736171374", "4548736142862", "4548736156432",
+    "4548736142374", "5706991022865", "5706991022827", "5706991024364", "5706991024340",
+    "5706991022803", "5706991024302", "5706991023275", "8887910060117"
 ]
-audio_pattern = '|'.join(audio_keywords)
 
-df_filtered = df[df['Varenavn'].astype(str).str.lower().str.contains(audio_pattern, na=False)].copy()
+# Standardize Whitelist list to 13 digits for precise alignment
+TARGET_EANS_CLEAN = [ean.strip().zfill(13) for ean in TARGET_EANS]
 
-# Exclude non-audio items or wired cables that might have matched accidentally
-df_filtered = df_filtered[~df_filtered['Varenavn'].astype(str).str.lower().str.contains('kablet|cable|adapter|keyboard|tastatur|mouse|mus|presenter|powerbank|charger', na=False)]
+# Filter catalog strictly by Whitelist
+df_whitelist = df[df['EAN_Clean'].isin(TARGET_EANS_CLEAN)].copy()
 
-# 6. Price Ceiling Filter (Max 2000 SEK)
-price_col = next((col for col in df_filtered.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
-df_filtered['Parsed_Price'] = pd.to_numeric(df_filtered[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
-df_filtered = df_filtered[df_filtered['Parsed_Price'] <= 2000]
+# 4. Filter Stock & Availability (Minimum 5 stock, confirmed status)
+df_whitelist['Stock'] = pd.to_numeric(df_whitelist['Beholdning'], errors='coerce').fillna(0)
+df_whitelist = df_whitelist[df_whitelist['Stock'] >= 5]
+df_whitelist = df_whitelist[df_whitelist['Lagerstatus [Ja Lager eller leveringstiden for varen]'].astype(str).str.lower().str.contains('ja|yes', na=False)]
 
-# 7. Sort by Stock Depth & Limit to Top 40 Audio Items
-df_final = df_filtered.sort_values(by='Stock', ascending=False).head(40).copy()
+# 5. Parse Price column
+price_col = next((col for col in df_whitelist.columns if 'pris' in col.lower() or 'price' in col.lower()), 'Pris')
+df_whitelist['Parsed_Price'] = pd.to_numeric(df_whitelist[price_col].astype(str).str.replace(',', '.', regex=False), errors='coerce').fillna(0)
 
-# 8. Image Extractor Logic
+# Final clean dataset (drops temporary processing column)
+df_final = df_whitelist.drop(columns=['EAN_Clean']).copy()
+
+# 6. Precision Nested Image Extractor (Matches /upload/products/XX/YYYYYYY/ format)
 def get_images(row):
     product_link = row.get('Produkt link', '')
     item_id = str(row.get('Varenummer', '')).strip()
@@ -59,33 +61,32 @@ def get_images(row):
     
     if isinstance(product_link, str) and product_link.startswith('http'):
         try:
-            res = requests.get(product_link, timeout=5)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            res = requests.get(product_link, headers=headers, timeout=10)
+            time.sleep(0.2)
+            
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 
-                # Method A: Look for script tags containing product image arrays
-                scripts = soup.find_all('script')
-                for script in scripts:
-                    if script.string and '/upload/products/' in script.string:
-                        import re
-                        found = re.findall(r'\/upload\/products\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png)', script.string)
-                        for f in found:
-                            full_url = f.startswith('http') and f or f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
-                            cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                            if cleaned not in images:
-                                images.append(cleaned)
-                
-                # Method B: Standard image tags fallback
-                if not images:
-                    img_tags = soup.find_all('img', src=lambda s: s and '/upload/products/' in s)
-                    for img in img_tags:
-                        src = img.get('src', '')
-                        if 'brand' in src.lower() or 'logo' in src.lower():
-                            continue
-                        full_url = src if src.startswith('http') else f"https://dcs.dk{src}"
-                        cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
-                        if cleaned not in images:
-                            images.append(cleaned)
+                # Search all attribute strings and scripts for the exact nested product path structure
+                for tag in soup.find_all(True):
+                    for attr, val in tag.attrs.items():
+                        if isinstance(val, str) and '/upload/products/' in val:
+                            if item_id in val or item_id == '': # Strict match to product ID to prevent cross-contamination
+                                cleaned_url = val if val.startswith('http') else f"https://dcs.dk{val if val.startswith('/') else '/' + val}"
+                                cleaned_url = cleaned_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
+                                if cleaned_url not in images and ('jpg' in cleaned_url or 'png' in cleaned_url):
+                                    images.append(cleaned_url)
+                                    
+                # Regex backup scan across entire page text for nested subfolders
+                found_links = re.findall(r'\/upload\/products\/\d+\/\d+[\/a-zA-Z0-9_\-]+\.(?:jpg|jpeg|png)', res.text)
+                for f in found_links:
+                    full_url = f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
+                    cleaned = full_url.replace('/cache/product_list_grid/', '/').replace('/cache/product_view_main/', '/')
+                    if cleaned not in images:
+                        images.append(cleaned)
         except Exception:
             pass
             
@@ -95,17 +96,17 @@ def get_images(row):
         
     return images
 
-print("Extracting high-resolution images for True Audio & Headphones (Top 40)...")
+print(f"Extracting exact nested images for whitelisted Headphones & Earphones ({len(df_final)} items with >=5 stock)...")
 rows = df_final.to_dict('records')
-with ThreadPoolExecutor(max_workers=10) as executor:
+with ThreadPoolExecutor(max_workers=5) as executor:
     all_images = list(executor.map(get_images, rows))
 
-# Assign extracted images across 16 separate image columns for BaseLinker
+# Assign extracted images across 16 separate image columns
 for i in range(16):
     col_name = f'Image_URL_{i+1}'
     df_final[col_name] = [imgs[i] if len(imgs) > i else '' for imgs in all_images]
 
-# 9. Save Category File
+# 7. Save Output File
 output_filename = 'audio_headphones.csv'
 df_final.to_csv(output_filename, sep=';', index=False)
-print(f"Sync finished successfully. {output_filename} updated with {len(df_final)} true audio items.")
+print(f"Sync finished successfully. {output_filename} updated with {len(df_final)} whitelisted audio items.")
