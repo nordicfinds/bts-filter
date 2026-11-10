@@ -1,12 +1,12 @@
 name: Sync ORPE Feed
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: '0 */3 * * *'
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
@@ -20,7 +20,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip pip install requests
+        run: pip install requests
 
       - name: Run ORPE Filter Script
         run: python orpe.py
