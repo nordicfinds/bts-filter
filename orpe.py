@@ -31,8 +31,7 @@ TARGET_EANS = {
 
 PRODUCT_FEED_URL = "https://www.orpe.com/feed/nzZLrHpJVZeunG9N5xKgCczbjmHIFRZOFhE0nSDlz98hed9w/product.csv"
 STOCK_FEED_URL = "https://www.orpe.com/feed/nzZLrHpJVZeunG9N5xKgCczbjmHIFRZOFhE0nSDlz98hed9w/stock.csv"
-MARKUP_MULTIPLIER = 1.25  # 25% margin markup
-MIN_STOCK = 5             # Minimum stock threshold requirement
+MIN_STOCK = 5
 
 def main():
     print("Fetching stock feed...")
@@ -47,7 +46,7 @@ def main():
         if gtin:
             stock_data[gtin] = int(qty) if qty.isdigit() else 0
 
-    print("Fetching product feed, filtering allowlist, and enforcing stock rules...")
+    print("Fetching product feed and filtering allowlist...")
     prod_response = requests.get(PRODUCT_FEED_URL)
     prod_response.raise_for_status()
 
@@ -57,11 +56,9 @@ def main():
     for row in prod_reader:
         gtin = row.get("gtin", "").strip()
         
-        # Rule 1: Must be in the 111 EAN allowlist
         if gtin not in TARGET_EANS:
             continue
             
-        # Rule 2: Stock must be at least MIN_STOCK (5)
         stock = stock_data.get(gtin, 0)
         if stock < MIN_STOCK:
             continue
@@ -73,13 +70,10 @@ def main():
         
         raw_price = row.get("price", "0").split()[0]
         try:
-            wholesale_price = float(raw_price)
+            price = float(raw_price)
         except ValueError:
-            wholesale_price = 0.0
+            price = 0.0
 
-        retail_price = round(wholesale_price * MARKUP_MULTIPLIER, 2)
-        
-        # Rule 3: High-quality image link preservation & full details
         image_url = row.get("image_link", "")
 
         matched_products.append({
@@ -88,21 +82,20 @@ def main():
             "title": title,
             "brand": brand,
             "description": description,
-            "wholesale_price": wholesale_price,
-            "price": retail_price,
+            "price": price,
             "stock": stock,
             "image": image_url
         })
 
     output_filename = "orpe_filtered.csv"
     with open(output_filename, mode="w", newline="", encoding="utf-8") as f:
-        fieldnames = ["sku", "ean", "title", "brand", "description", "wholesale_price", "price", "stock", "image"]
+        fieldnames = ["sku", "ean", "title", "brand", "description", "price", "stock", "image"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for p in matched_products:
             writer.writerow(p)
 
-    print(f"Done! Filtered down to {len(matched_products)} products meeting stock and EAN criteria and saved to {output_filename}.")
+    print(f"Done! Pulled {len(matched_products)} raw wholesale products saved to {output_filename}.")
 
 if __name__ == "__main__":
     main()
