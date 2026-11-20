@@ -1,3 +1,4 @@
+import html
 import io
 import os
 import re
@@ -52,7 +53,11 @@ RAW_TARGET_EANS = [
 TARGET_EANS_CLEAN = sorted(set(ean.strip().zfill(13) for ean in RAW_TARGET_EANS))
 
 # Keep ONLY rows from DCS matching your whitelist
-df_matched = df[df["EAN_Clean"].isin(TARGET_EANS_CLEAN)].drop_duplicates(subset=["EAN_Clean"], keep="first").copy()
+df_matched = (
+    df[df["EAN_Clean"].isin(TARGET_EANS_CLEAN)]
+    .drop_duplicates(subset=["EAN_Clean"], keep="first")
+    .copy()
+)
 
 # Ensure all 30 whitelist EANs are represented so unavailable/filtered items get Sync_Stock = 0
 base_whitelist_df = pd.DataFrame({"EAN_Clean": TARGET_EANS_CLEAN})
@@ -60,6 +65,16 @@ df_all = pd.merge(base_whitelist_df, df_matched, on="EAN_Clean", how="left")
 
 # Populate EAN nummer for any whitelist EAN missing from DCS feed
 df_all["EAN nummer"] = df_all["EAN nummer"].fillna(df_all["EAN_Clean"])
+
+# Clean stray HTML entities (like  ) in text fields while preserving URLs
+for text_col in ["Produktbeskrivelse", "Varenavn", "Modelbetegnelse", "Producentnavn"]:
+    if text_col in df_all.columns:
+        df_all[text_col] = (
+            df_all[text_col]
+            .fillna("")
+            .astype(str)
+            .apply(lambda v: re.sub(r"\s+", " ", html.unescape(v.replace(" ", " "))).strip())
+        )
 
 # 4. Evaluate Availability: >= 5 pcs AND Immediate In-Stock (exclude incoming / "delivered to us")
 avail_col = "Lagerstatus [Ja Lager eller leveringstiden for varen]"
@@ -85,8 +100,9 @@ else:
 
 df_final = df_all.drop(columns=["EAN_Clean"]).copy()
 
-# 6. Thread-Safe Image Scraper for Qualifying In-Stock Items Only
+# 6. Thread-Safe Multi-Image Scraper for Qualifying In-Stock Items Only
 thread_local = threading.local()
+
 
 def get_thread_session():
     if not hasattr(thread_local, "session"):
@@ -104,6 +120,7 @@ def get_thread_session():
         thread_local.session = s
     return thread_local.session
 
+
 def get_images(row):
     if int(row.get("Sync_Stock", 0)) <= 0:
         return []
@@ -111,39 +128,53 @@ def get_images(row):
     product_link = row.get("Produkt link", "")
     images = []
 
+    def add_image_url(raw_url):
+        if not raw_url or "/upload/products/" not in raw_url:
+            return
+        unquoted = html.unescape(str(raw_url)).strip()
+        lower_url = unquoted.lower()
+        if "brand" in lower_url or "logo" in lower_url:
+            return
+        full_url = (
+            unquoted
+            if unquoted.startswith("http")
+            else f"https://dcs.dk{unquoted if unquoted.startswith('/') else '/' + unquoted}"
+        )
+        cleaned = re.sub(r"/cache/[^/]+/", "/", full_url)
+        if cleaned not in images:
+            images.append(cleaned)
+
     if isinstance(product_link, str) and product_link.startswith("http"):
         s = get_thread_session()
         try:
             res = s.get(product_link, timeout=15)
 
             if res.status_code == 200:
+                found_in_html = re.findall(
+                    r"(?:https?:\/\/dcs\.dk)?\/upload\/products\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png|webp)",
+                    res.text,
+                    flags=re.IGNORECASE,
+                )
+                for f in found_in_html:
+                    add_image_url(f)
+
                 soup = BeautifulSoup(res.text, "html.parser")
-
-                scripts = soup.find_all("script")
-                for script in scripts:
-                    if script.string and "/upload/products/" in script.string:
-                        found = re.findall(r"\/upload\/products\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png)", script.string)
-                        for f in found:
-                            full_url = f.startswith("http") and f or f"https://dcs.dk{f if f.startswith('/') else '/' + f}"
-                            cleaned = full_url.replace("/cache/product_list_grid/", "/").replace("/cache/product_view_main/", "/")
-                            if cleaned not in images:
-                                images.append(cleaned)
-
-                if not images:
-                    img_tags = soup.find_all("img", src=lambda src: src and "/upload/products/" in src)
-                    for img in img_tags:
-                        src = img.get("src", "")
-                        if "brand" in src.lower() or "logo" in src.lower():
-                            continue
-                        full_url = src if src.startswith("http") else f"https://dcs.dk{src}"
-                        cleaned = full_url.replace("/cache/product_list_grid/", "/").replace("/cache/product_view_main/", "/")
-                        if cleaned not in images:
-                            images.append(cleaned)
+                for tag in soup.find_all(["img", "a", "source"]):
+                    for attr in ("src", "data-src", "data-zoom-image", "data-large", "href"):
+                        val = tag.get(attr)
+                        if isinstance(val, str):
+                            add_image_url(val)
+                    srcset = tag.get("srcset")
+                    if isinstance(srcset, str):
+                        for entry in srcset.split(","):
+                            url_part = entry.strip().split(" ")[0]
+                            add_image_url(url_part)
         except Exception:
             pass
 
     time.sleep(0.15)
     return images
+
 
 print("Extracting images for qualifying in-stock Gaming Consoles & Accessories...")
 rows = df_final.to_dict("records")
@@ -158,4 +189,7 @@ for i in range(16):
 output_filename = "gaming_consoles.csv"
 df_final.to_csv(output_filename, sep=";", index=False)
 active_count = int((df_final["Sync_Stock"] > 0).sum())
-print(f"Sync complete. {output_filename} generated with {len(df_final)} whitelist items ({active_count} in stock >=5, {len(df_final) - active_count} set to Sync_Stock=0).")
+print(
+    f"Sync complete. {output_filename} generated with {len(df_final)} whitelist items "
+    f"({active_count} in stock >=5, {len(df_final) - active_count} set to Sync_Stock=0)."
+)
