@@ -38,11 +38,9 @@ response.raise_for_status()
 # 2. Load CSV Data
 df = pd.read_csv(io.StringIO(response.text), sep=";", quotechar='"')
 df.columns = df.columns.str.strip()
-
-# Clean up EAN column values for exact matching
 df["EAN_Clean"] = df["EAN nummer"].astype(str).str.strip().str.zfill(13)
 
-# 3. Target Gaming EAN Whitelist (ONLY these EANs)
+# 3. STRICT Whitelist (ONLY these EANs, deduplicated)
 RAW_TARGET_EANS = [
     "0045496453138", "0045496321444", "0196388421442", "711719577171", "0711719021711",
     "0711719022756", "0814585022803", "0711719374107", "0711719020905", "0045496430528",
@@ -51,33 +49,43 @@ RAW_TARGET_EANS = [
     "0196388518067", "0889842196368", "0045496321390", "0196388518166", "0045496430795",
     "0711719023609", "0711719575924", "0045496321406", "0711719023104", "0196388518234",
 ]
-
 TARGET_EANS_CLEAN = sorted(set(ean.strip().zfill(13) for ean in RAW_TARGET_EANS))
-print(f"Loaded {len(RAW_TARGET_EANS)} raw EANs. Filtered down to {len(TARGET_EANS_CLEAN)} unique items.")
 
-# Filter catalog strictly by Whitelist (only items present in DCS feed)
-df_whitelist = df[df["EAN_Clean"].isin(TARGET_EANS_CLEAN)].copy()
+# Keep ONLY rows from DCS matching your whitelist
+df_matched = df[df["EAN_Clean"].isin(TARGET_EANS_CLEAN)].drop_duplicates(subset=["EAN_Clean"], keep="first").copy()
 
-# 4. Filter Stock >= 5 & Strictly In Stock (exclude incoming / "delivered to us")
+# Ensure all 30 whitelist EANs are represented so unavailable/filtered items get Sync_Stock = 0
+base_whitelist_df = pd.DataFrame({"EAN_Clean": TARGET_EANS_CLEAN})
+df_all = pd.merge(base_whitelist_df, df_matched, on="EAN_Clean", how="left")
+
+# Populate EAN nummer for any whitelist EAN missing from DCS feed
+df_all["EAN nummer"] = df_all["EAN nummer"].fillna(df_all["EAN_Clean"])
+
+# 4. Evaluate Availability: >= 5 pcs AND Immediate In-Stock (exclude incoming / "delivered to us")
 avail_col = "Lagerstatus [Ja Lager eller leveringstiden for varen]"
-status_text = df_whitelist[avail_col].astype(str).str.lower()
+status_text = df_all[avail_col].fillna("").astype(str).str.lower()
 
-df_whitelist["Stock"] = pd.to_numeric(df_whitelist["Beholdning"], errors="coerce").fillna(0)
-has_min_stock = df_whitelist["Stock"] >= 5
+raw_qty = pd.to_numeric(df_all["Beholdning"], errors="coerce").fillna(0).astype(int)
 is_in_stock = status_text.str.contains(r"\bja\b|\blager\b|\bin stock\b", regex=True, na=False)
 is_incoming = status_text.str.contains(r"delivered|levering|external|delivery", regex=True, na=False)
 
-df_whitelist = df_whitelist[has_min_stock & is_in_stock & (~is_incoming)].copy()
+qualifies_for_stock = (raw_qty >= 5) & is_in_stock & (~is_incoming)
 
-# 5. Parse Price column only (no retail price calculation)
-price_col = next((col for col in df_whitelist.columns if "pris" in col.lower() or "price" in col.lower()), "Pris")
-df_whitelist["Parsed_Price"] = pd.to_numeric(
-    df_whitelist[price_col].astype(str).str.replace(",", ".", regex=False), errors="coerce"
-).fillna(0)
+df_all["Stock"] = raw_qty
+df_all["Sync_Stock"] = raw_qty.where(qualifies_for_stock, 0).astype(int)
 
-df_final = df_whitelist.drop(columns=["EAN_Clean"]).copy()
+# 5. Parse Raw Wholesale Price Only (no retail markup/formula calculations)
+price_col = next((col for col in df_all.columns if "pris" in col.lower() or "price" in col.lower()), None)
+if price_col:
+    df_all["Parsed_Price"] = pd.to_numeric(
+        df_all[price_col].astype(str).str.replace(",", ".", regex=False), errors="coerce"
+    ).fillna(0)
+else:
+    df_all["Parsed_Price"] = 0.0
 
-# 6. Thread-Safe Scraper Session
+df_final = df_all.drop(columns=["EAN_Clean"]).copy()
+
+# 6. Thread-Safe Image Scraper for Qualifying In-Stock Items Only
 thread_local = threading.local()
 
 def get_thread_session():
@@ -97,6 +105,9 @@ def get_thread_session():
     return thread_local.session
 
 def get_images(row):
+    if int(row.get("Sync_Stock", 0)) <= 0:
+        return []
+
     product_link = row.get("Produkt link", "")
     images = []
 
@@ -134,7 +145,7 @@ def get_images(row):
     time.sleep(0.15)
     return images
 
-print("Extracting images for Gaming Consoles & Accessories...")
+print("Extracting images for qualifying in-stock Gaming Consoles & Accessories...")
 rows = df_final.to_dict("records")
 with ThreadPoolExecutor(max_workers=4) as executor:
     all_images = list(executor.map(get_images, rows))
@@ -146,4 +157,5 @@ for i in range(16):
 # 7. Save Output File
 output_filename = "gaming_consoles.csv"
 df_final.to_csv(output_filename, sep=";", index=False)
-print(f"Sync complete. {output_filename} generated with {len(df_final)} items.")
+active_count = int((df_final["Sync_Stock"] > 0).sum())
+print(f"Sync complete. {output_filename} generated with {len(df_final)} whitelist items ({active_count} in stock >=5, {len(df_final) - active_count} set to Sync_Stock=0).")
