@@ -66,14 +66,14 @@ df_all = pd.merge(base_whitelist_df, df_matched, on="EAN_Clean", how="left")
 # Populate EAN nummer for any whitelist EAN missing from DCS feed
 df_all["EAN nummer"] = df_all["EAN nummer"].fillna(df_all["EAN_Clean"])
 
-# Clean stray HTML entities (like  ) in text fields while preserving URLs
+# Clean stray HTML entities (like &nbsp) in text fields while preserving URLs
 for text_col in ["Produktbeskrivelse", "Varenavn", "Modelbetegnelse", "Producentnavn"]:
     if text_col in df_all.columns:
         df_all[text_col] = (
             df_all[text_col]
             .fillna("")
             .astype(str)
-            .apply(lambda v: re.sub(r"\s+", " ", html.unescape(v.replace(" ", " "))).strip())
+            .apply(lambda v: re.sub(r"\s+", " ", html.unescape(v.replace("&nbsp", "&nbsp;"))).strip())
         )
 
 # 4. Evaluate Availability: >= 5 pcs AND Immediate In-Stock (exclude incoming / "delivered to us")
@@ -100,7 +100,7 @@ else:
 
 df_final = df_all.drop(columns=["EAN_Clean"]).copy()
 
-# 6. Thread-Safe Multi-Image Scraper for Qualifying In-Stock Items Only
+# 6. Thread-Safe Exact-Product Image Scraper for Qualifying In-Stock Items Only
 thread_local = threading.local()
 
 
@@ -133,7 +133,7 @@ def get_images(row):
             return
         unquoted = html.unescape(str(raw_url)).strip()
         lower_url = unquoted.lower()
-        if "brand" in lower_url or "logo" in lower_url:
+        if any(bad in lower_url for bad in ("brand", "logo", "banner", "icon", "related", "upsell")):
             return
         full_url = (
             unquoted
@@ -150,25 +150,52 @@ def get_images(row):
             res = s.get(product_link, timeout=15)
 
             if res.status_code == 200:
-                found_in_html = re.findall(
-                    r"(?:https?:\/\/dcs\.dk)?\/upload\/products\/[a-zA-Z0-9_\/.-]+\.(?:jpg|jpeg|png|webp)",
-                    res.text,
-                    flags=re.IGNORECASE,
-                )
-                for f in found_in_html:
-                    add_image_url(f)
-
                 soup = BeautifulSoup(res.text, "html.parser")
-                for tag in soup.find_all(["img", "a", "source"]):
-                    for attr in ("src", "data-src", "data-zoom-image", "data-large", "href"):
-                        val = tag.get(attr)
-                        if isinstance(val, str):
-                            add_image_url(val)
-                    srcset = tag.get("srcset")
-                    if isinstance(srcset, str):
-                        for entry in srcset.split(","):
-                            url_part = entry.strip().split(" ")[0]
-                            add_image_url(url_part)
+
+                # Focus on product gallery / product detail containers first
+                gallery_containers = soup.select(
+                    "[class*='gallery'], [class*='product-image'], [class*='product-media'], "
+                    "[class*='slider'], [class*='carousel'], [id*='gallery'], [id*='product-image']"
+                )
+
+                for container in gallery_containers:
+                    # Skip containers that clearly belong to related/similar/recommended products
+                    ctx_text = " ".join(
+                        filter(
+                            None,
+                            [
+                                " ".join(container.get("class", [])),
+                                container.get("id", ""),
+                            ],
+                        )
+                    ).lower()
+                    if any(skip in ctx_text for skip in ("related", "similar", "recommend", "upsell", "cross", "recent")):
+                        continue
+
+                    for tag in container.find_all(["img", "a", "source"]):
+                        for attr in ("src", "data-src", "data-zoom-image", "data-large", "href"):
+                            val = tag.get(attr)
+                            if isinstance(val, str):
+                                add_image_url(val)
+                        srcset = tag.get("srcset")
+                        if isinstance(srcset, str):
+                            for entry in srcset.split(","):
+                                url_part = entry.strip().split(" ")[0]
+                                add_image_url(url_part)
+
+                # Fallback if gallery container selectors didn't capture any product images
+                if not images:
+                    for tag in soup.find_all(["img", "a", "source"]):
+                        if tag.find_parent(
+                            attrs={
+                                "class": re.compile(r"related|similar|recommend|upsell|cross|recent|footer|nav|header", re.I)
+                            }
+                        ):
+                            continue
+                        for attr in ("src", "data-src", "data-zoom-image", "data-large", "href"):
+                            val = tag.get(attr)
+                            if isinstance(val, str):
+                                add_image_url(val)
         except Exception:
             pass
 
